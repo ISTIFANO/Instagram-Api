@@ -24,7 +24,7 @@ public class GenericTemplateData {
     @JsonProperty("buttons")
     private List<TemplateButton> buttons;
 
-    public GenericTemplateData() {
+    public GenericTemplateData(){
     }
 
     public GenericTemplateData(String title, String imageUrl, String subtitle) {

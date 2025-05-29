@@ -2,7 +2,7 @@ package com.example.dashy_platforms.domaine.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class InstagramMessageRequest {
-    @JsonProperty("recipient_id")
+    @JsonProperty("recipient")
     private String recipientId;
 
     @JsonProperty("message")
