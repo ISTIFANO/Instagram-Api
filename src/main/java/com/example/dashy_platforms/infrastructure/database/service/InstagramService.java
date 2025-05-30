@@ -199,9 +199,9 @@ public class InstagramService implements IInstagramService {
     @Override
     public InstagramMessageResponse sendMessage(InstagramTemplateRequest request) {
         if ("TEMPLATE".equals(request) && request.getMessage() != null) {
-            return sendGenericTemplate(request.getRecipient(), request);
+            return sendGenericTemplate(request.getRecipient().getId(), request);
         } else {
-            return sendTextMessage(request.getRecipient(), String.valueOf(request));
+            return sendTextMessage(request.getRecipient().getId(), String.valueOf(request));
         }
     }
 

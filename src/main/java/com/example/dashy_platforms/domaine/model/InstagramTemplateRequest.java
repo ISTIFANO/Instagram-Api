@@ -4,21 +4,18 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.beans.ConstructorProperties;
+
 @Getter
 @Setter
 public class InstagramTemplateRequest {
 
     @JsonProperty("recipient")
-    private String recipient;
+    private Recipient recipient;
 
     @JsonProperty("message")
     private Message message;
 
-    public InstagramTemplateRequest(String messageId, Recipient recipient_id) {}
 
-    public InstagramTemplateRequest(String recipient, Message message) {
-        this.recipient = recipient;
-        this.message = message;
-    }
 
 }
