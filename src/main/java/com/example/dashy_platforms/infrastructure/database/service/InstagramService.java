@@ -96,6 +96,8 @@ public class InstagramService implements IInstagramService {
     }
     @Override
     public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
+        System.out.println("Inside sendGenericTemplate");
+        System.out.println(templateData.getMessage().getAttachment().getType());
         try {
             MessageEntity messageEntity = new MessageEntity();
             MessageEntity dbMessage = messageRepository.save(messageEntity);
@@ -198,6 +200,8 @@ public class InstagramService implements IInstagramService {
 
     @Override
     public InstagramMessageResponse sendMessage(InstagramTemplateRequest request) {
+
+
         if ("TEMPLATE".equals(request) && request.getMessage() != null) {
             return sendGenericTemplate(request.getRecipient().getId(), request);
         } else {

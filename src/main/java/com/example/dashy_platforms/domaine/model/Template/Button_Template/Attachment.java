@@ -1,4 +1,4 @@
-package com.example.dashy_platforms.domaine.model.Button_Template;
+package com.example.dashy_platforms.domaine.model.Template.Button_Template;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;

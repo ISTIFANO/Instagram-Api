@@ -41,6 +41,7 @@ private final InstagramService instagramService;
     public ResponseEntity<InstagramMessageResponse> sendTemplateMessage(
             @RequestParam String recipient_id,
             @RequestBody InstagramTemplateRequest message) {
+
         InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, message);
         if ("SENT".equals(response.getStatus())) {
             return ResponseEntity.ok(response);
