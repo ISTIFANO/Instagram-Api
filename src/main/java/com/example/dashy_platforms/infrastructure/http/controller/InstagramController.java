@@ -4,6 +4,8 @@ import com.example.dashy_platforms.domaine.model.GenericTemplateData;
 import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
 import com.example.dashy_platforms.domaine.model.InstagramTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Message;
+import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
+import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -43,6 +45,30 @@ private final InstagramService instagramService;
             @RequestBody InstagramTemplateRequest message) {
 
         InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, message);
+        if ("SENT".equals(response.getStatus())) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    @PostMapping("/sendbuttontemplate")
+    public ResponseEntity<InstagramMessageResponse> sendTemplateButtonMessage(
+            @RequestParam String recipient_id,
+            @RequestBody InstagramButtonTemplateRequest message) {
+
+        InstagramMessageResponse response = instagramService.sendButtonTemplate(recipient_id, message);
+        if ("SENT".equals(response.getStatus())) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    @PostMapping("/sendQuick_repliestemplate")
+    public ResponseEntity<InstagramMessageResponse> sendTemplateQuick_replies(
+            @RequestParam String recipient_id,
+            @RequestBody Quick_replies_Request message) {
+
+        InstagramMessageResponse response = instagramService.sendQuick_repliesTemplate(message);
         if ("SENT".equals(response.getStatus())) {
             return ResponseEntity.ok(response);
         } else {
