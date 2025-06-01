@@ -1,9 +1,6 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
-import com.example.dashy_platforms.domaine.model.GenericTemplateData;
-import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
-import com.example.dashy_platforms.domaine.model.InstagramTemplateRequest;
-import com.example.dashy_platforms.domaine.model.Message;
+import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
@@ -12,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/instagram")
@@ -80,5 +78,9 @@ private final InstagramService instagramService;
         return "Hello from Instagram API!";
     }
 
-
+    @GetMapping("/users")
+    public ResponseEntity<Set<UserListInfoResponse>> getMessagedUsers() {
+        Set<UserListInfoResponse> users = instagramService.listMessagedUsers();
+        return ResponseEntity.ok(users);
+    }
 }

@@ -370,7 +370,46 @@ public class InstagramService implements IInstagramService {
     public void processPendingMessages() {
 
     }
+    @Override
+    public Set<UserListInfoResponse> listMessagedUsers() {
+        Set<UserListInfoResponse> users = new HashSet<>();
 
+        String conversationEndpoint = graphApiUrl + "/" + pageId + "/conversations?platform=instagram&access_token=" + accessToken;
+        ResponseEntity<Map> response = restTemplate.getForEntity(conversationEndpoint, Map.class);
+
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            List<Map<String, Object>> conversations = (List<Map<String, Object>>) response.getBody().get("data");
+
+            if (conversations != null) {
+                for (Map<String, Object> conversation : conversations) {
+                    String conversationId = (String) conversation.get("id");
+                    String messageEndpoint = graphApiUrl + "/" + conversationId + "/messages?fields=from,to,message,created_time,id&access_token=" + accessToken;
+
+                    ResponseEntity<Map> messageResponse = restTemplate.getForEntity(messageEndpoint, Map.class);
+                    if (messageResponse.getStatusCode() == HttpStatus.OK && messageResponse.getBody() != null) {
+                        List<Map<String, Object>> messages = (List<Map<String, Object>>) messageResponse.getBody().get("data");
+
+                        if (messages != null) {
+                            for (Map<String, Object> messageData : messages) {
+                                Map<String, Object> from = (Map<String, Object>) messageData.get("from");
+
+
+                                Map<String, Object> to = (Map<String, Object>) messageData.get("to");
+                                if (to != null) {
+                                    List<Map<String, Object>> toData = (List<Map<String, Object>>) to.get("data");
+                                    for (Map<String, Object> user : toData) {
+                                        users.add(new UserListInfoResponse((String) user.get("id"), (String) user.get("username")));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return users;
+    }
 
 
 
