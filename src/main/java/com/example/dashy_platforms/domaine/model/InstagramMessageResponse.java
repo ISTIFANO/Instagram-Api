@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
-@Setter
 @Getter
+@Setter
 public class InstagramMessageResponse {
     @JsonProperty("message_id")
     private String messageId;
@@ -39,3 +39,4 @@ public class InstagramMessageResponse {
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 }
+

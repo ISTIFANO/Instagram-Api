@@ -8,7 +8,7 @@ import java.util.Objects;
 
 @Getter
 @Setter
-public class UserListInfoResponse {
+public class UserListInfoResponse{
     private String id;
     private String username;
 

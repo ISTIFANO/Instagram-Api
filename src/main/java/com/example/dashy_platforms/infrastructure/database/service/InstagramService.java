@@ -99,70 +99,14 @@ public class InstagramService implements IInstagramService {
     }
     @Override
     public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
-        System.out.println("Inside sendGenericTemplate");
-        System.out.println(templateData.getMessage().getAttachment().getType());
         try {
-            MessageEntity messageEntity = new MessageEntity();
-            MessageEntity dbMessage = messageRepository.save(messageEntity);
+            MessageEntity dbMessage = messageRepository.save(new MessageEntity());
 
             String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
-            List<Map<String, Object>> elementsList = new ArrayList<>();
-
-            if (templateData.getMessage().getAttachment() != null &&
-                    templateData.getMessage().getAttachment().getPayload() != null &&
-                    templateData.getMessage().getAttachment().getPayload().getElements() != null) {
-
-                for (ElementModel elem : templateData.getMessage().getAttachment().getPayload().getElements()) {
-                    Map<String, Object> element = new HashMap<>();
-                    element.put("title", elem.getTitle());
-                    element.put("image_url", elem.getImageUrl());
-                    element.put("subtitle", elem.getSubtitle());
-
-                    if (elem.getDefaultAction() != null) {
-                        Map<String, Object> defaultAction = new HashMap<>();
-                        defaultAction.put("type", elem.getDefaultAction().getType());
-                        defaultAction.put("url", elem.getDefaultAction().getUrl());
-                        element.put("default_action", defaultAction);
-                    }
-
-                    if (elem.getButtons() != null && !elem.getButtons().isEmpty()) {
-                        List<Map<String, Object>> buttons = new ArrayList<>();
-                        for (TemplateButton button : elem.getButtons()) {
-                            Map<String, Object> buttonMap = new HashMap<>();
-                            buttonMap.put("type", button.getType());
-                            buttonMap.put("title", button.getTitle());
-                            if ("web_url".equals(button.getType())) {
-                                buttonMap.put("url", button.getUrl());
-                            } else if ("postback".equals(button.getType())) {
-                                buttonMap.put("payload", button.getPayload());
-                            }
-                            buttons.add(buttonMap);
-                        }
-                        element.put("buttons", buttons);
-                    }
-
-                    elementsList.add(element);
-                }
-            }
-
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("template_type", "generic");
-            payload.put("elements", elementsList);
-
-            Map<String, Object> attachment = new HashMap<>();
-            attachment.put("type", "template");
-            attachment.put("payload", payload);
-
-            Map<String, Object> message = new HashMap<>();
-            message.put("attachment", attachment);
-
-            Map<String, Object> recipient = new HashMap<>();
-            recipient.put("id", recipientId);
-
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("recipient", recipient);
-            requestBody.put("message", message);
+            requestBody.put("recipient", Map.of("id", recipientId));
+            requestBody.put("message", templateData.getMessage());
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -203,51 +147,14 @@ public class InstagramService implements IInstagramService {
 
     @Override
     public InstagramMessageResponse sendButtonTemplate(String recipientId, InstagramButtonTemplateRequest templateRequest) {
-        System.out.println("Inside sendButtonTemplate");
-
         try {
-            MessageEntity messageEntity = new MessageEntity();
-            MessageEntity dbMessage = messageRepository.save(messageEntity);
+            MessageEntity dbMessage = messageRepository.save(new MessageEntity());
 
             String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
-            List<Map<String, Object>> buttonList = new ArrayList<>();
-            if (templateRequest.getMessage() != null &&
-                    templateRequest.getMessage().getAttachment() != null &&
-                    templateRequest.getMessage().getAttachment().getPayload() != null &&
-                    templateRequest.getMessage().getAttachment().getPayload().getElements() != null) {
-
-                for (TemplateButton button : templateRequest.getMessage().getAttachment().getPayload().getElements()) {
-                    Map<String, Object> buttonMap = new HashMap<>();
-                    buttonMap.put("type", button.getType());
-                    buttonMap.put("title", button.getTitle());
-
-                    if ("web_url".equals(button.getType())) {
-                        buttonMap.put("url", button.getUrl());
-                    } else if ("postback".equals(button.getType())) {
-                        buttonMap.put("payload", button.getPayload());
-                    }
-
-                    buttonList.add(buttonMap);
-                }
-            }
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("template_type", "button");
-            payload.put("text", templateRequest.getMessage().getAttachment().getPayload().getText());
-            payload.put("buttons", buttonList);
-
-            Map<String, Object> attachment = new HashMap<>();
-            attachment.put("type", "template");
-            attachment.put("payload", payload);
-            Map<String, Object> message = new HashMap<>();
-            message.put("attachment", attachment);
-
-            Map<String, Object> recipient = new HashMap<>();
-            recipient.put("id", recipientId);
-
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("recipient", recipient);
-            requestBody.put("message", message);
+            requestBody.put("recipient", Map.of("id", recipientId));
+            requestBody.put("message", templateRequest.getMessage());
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -277,7 +184,6 @@ public class InstagramService implements IInstagramService {
                 errorResponse.setErrorMessage("Failed to send button template");
                 return errorResponse;
             }
-
         } catch (Exception e) {
             InstagramMessageResponse errorResponse = new InstagramMessageResponse();
             errorResponse.setStatus("ERROR");
@@ -285,44 +191,23 @@ public class InstagramService implements IInstagramService {
             return errorResponse;
         }
     }
+
     @Override
     public InstagramMessageResponse sendQuick_repliesTemplate(Quick_replies_Request quickReplies) {
-
         try {
-            MessageEntity messageEntity = new MessageEntity();
-            MessageEntity dbMessage = messageRepository.save(messageEntity);
+            MessageEntity dbMessage = messageRepository.save(new MessageEntity());
 
             String url = String.format("%s/v18.0/me/messages", graphApiUrl);
 
-            List<Map<String, Object>> quickRepliesList = new ArrayList<>();
-
-            if (quickReplies.getMessage() != null && quickReplies.getMessage().getQuick_replies() != null) {
-                for (Quick_replies reply : quickReplies.getMessage().getQuick_replies()) {
-                    Map<String, Object> replyMap = new HashMap<>();
-                    replyMap.put("content_type", reply.getContentType());
-                    replyMap.put("title", reply.getTitle());
-                    replyMap.put("payload", reply.getPayload());
-                    quickRepliesList.add(replyMap);
-                }
-            }
-
-            Map<String, Object> message = new HashMap<>();
-            message.put("text", quickReplies.getMessage().getText());
-            message.put("quick_replies", quickRepliesList);
-
-            Map<String, Object> recipient = new HashMap<>();
-            recipient.put("id", quickReplies.getRecipient().getId());
-
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("recipient", recipient);
-            requestBody.put("message", message);
+            requestBody.put("recipient", Map.of("id", quickReplies.getRecipient().getId()));
+            requestBody.put("message", quickReplies.getMessage());
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(accessToken);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
@@ -354,17 +239,15 @@ public class InstagramService implements IInstagramService {
         }
     }
 
-
     @Override
     public InstagramMessageResponse sendMessage(InstagramTemplateRequest request) {
-
-
-        if ("TEMPLATE".equals(request) && request.getMessage() != null) {
+        if ("TEMPLATE".equals(request.getMessage().getAttachment().getType()) && request.getMessage() != null) {
             return sendGenericTemplate(request.getRecipient().getId(), request);
         } else {
             return sendTextMessage(request.getRecipient().getId(), String.valueOf(request));
         }
     }
+
 
     @Override
     public void processPendingMessages() {

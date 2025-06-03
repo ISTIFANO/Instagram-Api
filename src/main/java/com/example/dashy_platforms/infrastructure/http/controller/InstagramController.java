@@ -7,7 +7,6 @@ import com.example.dashy_platforms.infrastructure.database.service.InstagramServ
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -76,6 +75,10 @@ private final InstagramService instagramService;
     @GetMapping("/hello")
     public String sayHello() {
         return "Hello from Instagram API!";
+    }
+    @GetMapping("/auth/instagram/callback")
+    public String callback() {
+        return "_auth_facebook_callback";
     }
 
     @GetMapping("/users")
