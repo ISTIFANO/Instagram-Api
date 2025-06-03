@@ -1,6 +1,7 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
@@ -22,14 +23,9 @@ private final InstagramService instagramService;
     }
 
     @PostMapping("/sendmessage")
-    public ResponseEntity<InstagramMessageResponse> sendTextMessage(@RequestBody Map<String, Object> payload) {
+    public ResponseEntity<InstagramMessageResponse> sendTextMessage(@RequestBody InstagramMessageRequest payload) {
 
-
-        String recipientId = String.valueOf(payload.get("recipientId"));
-        String message = String.valueOf(payload.get("message"));
-
-
-        InstagramMessageResponse resp = instagramService.sendTextMessage(recipientId, message);
+        InstagramMessageResponse resp = instagramService.sendTextMessage(payload);
         if ("SENT".equals(resp.getStatus())) {
             return ResponseEntity.ok(resp);
         } else {

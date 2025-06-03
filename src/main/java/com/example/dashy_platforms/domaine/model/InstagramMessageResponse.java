@@ -26,6 +26,11 @@ public class InstagramMessageResponse {
         this.recipientId = recipientId;
         this.status = status;
     }
+    public InstagramMessageResponse(String status, String errorMessage) {
+
+        this.status = status;
+        this.errorMessage = errorMessage;
+    }
 
     public String getMessageId() { return messageId; }
     public void setMessageId(String messageId) { this.messageId = messageId; }

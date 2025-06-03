@@ -12,6 +12,7 @@ public class UserListInfoResponse{
     private String id;
     private String username;
 
+
     public UserListInfoResponse() {
     }
 

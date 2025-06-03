@@ -10,4 +10,8 @@ public class Message{
 
     @JsonProperty("attachment")
     private Attachment attachment;
+
+
+
+
 }

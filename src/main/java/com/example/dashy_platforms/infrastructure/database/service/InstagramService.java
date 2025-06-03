@@ -1,6 +1,8 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
+import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
@@ -12,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -36,67 +39,51 @@ public class InstagramService implements IInstagramService {
     private RestTemplate restTemplate;
 
     @Override
-    public InstagramMessageResponse sendTextMessage(String recipientId, String message) {
+    public InstagramMessageResponse sendTextMessage(InstagramMessageRequest messageRequest) {
         try {
-
             MessageEntity messageEntity = new MessageEntity();
+            messageEntity.setMessageType("text");
+            messageEntity.setRecipientId(messageRequest.getRecipient().getId());
+            messageEntity.setMessageContent(messageRequest.getMessage().getText());
+            messageEntity.setStatus("PENDING");
+            messageEntity.setCreatedAt(LocalDateTime.now());
+            messageEntity.setSentAt(LocalDateTime.now());
             MessageEntity dbMessage = messageRepository.save(messageEntity);
 
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("recipient", Map.of("id", messageRequest.getRecipient().getId()));
+            requestBody.put("message", Map.of("text", messageRequest.getMessage().getText()));
+
             String url = String.format("%s/v22.0/me/messages", graphApiUrl);
-
-            Map<String, Object> messageMap = new HashMap<>();
-            messageMap.put("text", message);
-
-            Map<String, Object> recipientMap = new HashMap<>();
-            recipientMap.put("id", recipientId);
-
-            Map<String, Object> body = new HashMap<>();
-            body.put("recipient", recipientMap);
-            body.put("message", messageMap);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(accessToken);
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            String jsonBody = objectMapper.writeValueAsString(body);
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
             RestTemplate restTemplate = new RestTemplate();
-
-
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
 
-                String message_id = (String) response.getBody().get("message_id");
-                dbMessage.setMessageType("text");
-                dbMessage.setRecipientId(recipientId);
-                dbMessage.setMessageContent(message);
                 dbMessage.setStatus("SENT");
-                dbMessage.setSentAt(LocalDateTime.now());
-                dbMessage.setCreatedAt(LocalDateTime.now());
+                dbMessage.setMessageContent(messageRequest.getMessage().getText());
                 messageRepository.save(dbMessage);
 
-                return new InstagramMessageResponse(message_id, recipientId, "SENT");
+                return new InstagramMessageResponse(messageId, messageRequest.getRecipient().getId(), "SENT");
             } else {
                 dbMessage.setStatus("FAILED");
                 messageRepository.save(dbMessage);
-                InstagramMessageResponse errorResponse = new InstagramMessageResponse();
-
-                errorResponse.setStatus("FAILED");
-                errorResponse.setErrorMessage("Failed to send message");
-                return errorResponse;
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi du message");
             }
-
         } catch (Exception e) {
-            InstagramMessageResponse errorResponse = new InstagramMessageResponse();
-            errorResponse.setStatus("ERROR");
-            errorResponse.setErrorMessage(e.getMessage());
-            return errorResponse;
+            return new InstagramMessageResponse("ERROR", e.getMessage());
         }
     }
+
+
     @Override
     public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
         try {
@@ -165,7 +152,6 @@ public class InstagramService implements IInstagramService {
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String messageId = (String) response.getBody().get("message_id");
-
                 dbMessage.setMessageType("button_template");
                 dbMessage.setRecipientId(recipientId);
                 dbMessage.setMessageContent(templateRequest.getMessage().getAttachment().getPayload().getText());
@@ -239,14 +225,7 @@ public class InstagramService implements IInstagramService {
         }
     }
 
-    @Override
-    public InstagramMessageResponse sendMessage(InstagramTemplateRequest request) {
-        if ("TEMPLATE".equals(request.getMessage().getAttachment().getType()) && request.getMessage() != null) {
-            return sendGenericTemplate(request.getRecipient().getId(), request);
-        } else {
-            return sendTextMessage(request.getRecipient().getId(), String.valueOf(request));
-        }
-    }
+
 
 
     @Override
@@ -266,6 +245,7 @@ public class InstagramService implements IInstagramService {
             if (conversations != null) {
                 for (Map<String, Object> conversation : conversations) {
                     String conversationId = (String) conversation.get("id");
+
                     String messageEndpoint = graphApiUrl + "/" + conversationId + "/messages?fields=from,to,message,created_time,id&access_token=" + accessToken;
 
                     ResponseEntity<Map> messageResponse = restTemplate.getForEntity(messageEndpoint, Map.class);
@@ -290,7 +270,6 @@ public class InstagramService implements IInstagramService {
                 }
             }
         }
-
         return users;
     }
 
