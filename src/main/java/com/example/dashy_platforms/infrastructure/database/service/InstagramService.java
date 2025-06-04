@@ -19,7 +19,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
-
 @Service
 public class InstagramService implements IInstagramService {
 
@@ -41,6 +40,7 @@ public class InstagramService implements IInstagramService {
     @Override
     public InstagramMessageResponse sendTextMessage(InstagramMessageRequest messageRequest) {
         try {
+
             MessageEntity messageEntity = new MessageEntity();
             messageEntity.setMessageType("text");
             messageEntity.setRecipientId(messageRequest.getRecipient().getId());
