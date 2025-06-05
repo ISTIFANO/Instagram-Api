@@ -38,9 +38,10 @@ public class InstagramServiceImp {
         this.restTemplate = restTemplate;
     }
 /*
-
+*
 get Authorization from meta @return le code d access pour l utilisateur
-
+*
+*
  */
     public String generateAuthorizationUrl(String state) {
         StringBuilder authorizationUrl = new StringBuilder("https://www.instagram.com/oauth/authorize");
