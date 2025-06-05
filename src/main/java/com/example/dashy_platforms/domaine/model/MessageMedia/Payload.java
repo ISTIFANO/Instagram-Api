@@ -1,4 +1,4 @@
-package com.example.dashy_platforms.domaine.model.MessageFile;
+package com.example.dashy_platforms.domaine.model.MessageMedia;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;

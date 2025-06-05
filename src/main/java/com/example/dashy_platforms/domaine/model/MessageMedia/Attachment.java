@@ -1,10 +1,10 @@
-package com.example.dashy_platforms.domaine.model.MessageFile;
+package com.example.dashy_platforms.domaine.model.MessageMedia;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Attachment {
     @JsonProperty("type")
-    private String type ="image";
+    private String type;
     @JsonProperty("payload")
     private Payload payload;
 
