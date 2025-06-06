@@ -8,5 +8,12 @@ import lombok.Setter;
 @Getter
 public class AttachementResponse {
     @JsonProperty("attachment_id")
-    private String attachmentId;
+    private Long attachmentId;
+
+    public AttachementResponse() {
+        super();
+    }
+    public AttachementResponse(Long attachmentId) {
+
+    }
 }

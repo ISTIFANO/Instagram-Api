@@ -1,6 +1,9 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
@@ -31,6 +34,9 @@ public class InstagramService implements IInstagramService {
     @Value("${instagram.graph.page.id}")
     private String pageId;
 
+    @Value("${instagram.graph.facebookpage.id}")
+    private String facebookPageId;
+
     @Autowired
     private MessageRepository messageRepository;
 
@@ -53,7 +59,6 @@ public class InstagramService implements IInstagramService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("recipient", Map.of("id", messageRequest.getRecipient().getId()));
             requestBody.put("message", Map.of("text", messageRequest.getMessage().getText()));
-
             String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
             HttpHeaders headers = new HttpHeaders();
@@ -226,12 +231,11 @@ public class InstagramService implements IInstagramService {
     }
 
 
-
-
     @Override
     public void processPendingMessages() {
 
     }
+
     @Override
     public Set<UserListInfoResponse> listMessagedUsers() {
         Set<UserListInfoResponse> users = new HashSet<>();
@@ -274,5 +278,24 @@ public class InstagramService implements IInstagramService {
     }
 
 
+    @Override
+    public AttachementResponse uploadAttachment(AttachmentRequest attachmentRequest) {
 
+        String url = String.format("https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s", facebookPageId, accessToken);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(accessToken);
+
+        HttpEntity<AttachmentRequest> request = new HttpEntity<>(attachmentRequest, headers);
+
+        RestTemplate restTemplate = new RestTemplate();
+        ResponseEntity<AttachementResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, AttachementResponse.class);
+
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            return new AttachementResponse(response.getBody().getAttachmentId());
+        } else {
+            throw new RuntimeException("Failed to upload attachment");
+        }
+    }
 }
