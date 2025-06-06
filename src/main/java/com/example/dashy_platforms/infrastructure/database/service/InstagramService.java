@@ -298,4 +298,43 @@ public class InstagramService implements IInstagramService {
             throw new RuntimeException("Failed to upload attachment");
         }
     }
+
+    public InstagramMessageResponse sendImageMessage(MessageFileRequest messageRequest) {
+        try {
+            MessageEntity messageEntity = new MessageEntity();
+            messageEntity.setMessageType("image");
+            messageEntity.setRecipientId(messageRequest.getRecipient().getId());
+            messageEntity.setStatus("PENDING");
+            messageEntity.setCreatedAt(LocalDateTime.now());
+            messageEntity.setSentAt(LocalDateTime.now());
+            messageRepository.save(messageEntity);
+
+            String url = "https://graph.facebook.com/v22.0/me/messages?access_token=" + accessToken;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<MessageFileRequest> request = new HttpEntity<>(messageRequest, headers);
+
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
+
+                messageEntity.setStatus("SENT");
+                messageRepository.save(messageEntity);
+
+                return new InstagramMessageResponse(messageId, messageRequest.getRecipient().getId(), "SENT");
+            } else {
+                messageEntity.setStatus("FAILED");
+                messageRepository.save(messageEntity);
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi du message");
+            }
+        } catch (Exception e) {
+            return new InstagramMessageResponse("ERROR", e.getMessage());
+        }
+    }
+
 }

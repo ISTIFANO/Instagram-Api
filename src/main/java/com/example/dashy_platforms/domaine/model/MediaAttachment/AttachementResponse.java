@@ -9,11 +9,16 @@ import lombok.Setter;
 public class AttachementResponse {
     @JsonProperty("attachment_id")
     private Long attachmentId;
+    @JsonProperty("error_message")
+    private String errorMessage;
 
     public AttachementResponse() {
         super();
     }
     public AttachementResponse(Long attachmentId) {
+
+    }
+    public AttachementResponse(String errorMessage) {
 
     }
 }

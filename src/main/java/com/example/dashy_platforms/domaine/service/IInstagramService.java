@@ -18,4 +18,5 @@ public interface IInstagramService {
     InstagramMessageResponse sendQuick_repliesTemplate(Quick_replies_Request templateData);
     AttachementResponse uploadAttachment(AttachmentRequest attachmentRequest);
     void processPendingMessages();
+    public InstagramMessageResponse sendImageMessage(MessageFileRequest messageRequest);
 }

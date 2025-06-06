@@ -1,10 +1,14 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -81,5 +85,25 @@ private final InstagramService instagramService;
     public ResponseEntity<Set<UserListInfoResponse>> getMessagedUsers() {
         Set<UserListInfoResponse> users = instagramService.listMessagedUsers();
         return ResponseEntity.ok(users);
+    }
+
+    @PostMapping("/upload-attachment")
+    public ResponseEntity<AttachementResponse> uploadAttachment(@RequestBody AttachmentRequest attachmentRequest) {
+        try {
+            AttachementResponse attachmentId = instagramService.uploadAttachment(attachmentRequest);
+            return ResponseEntity.ok(attachmentId);
+        } catch (Exception e) {
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    @PostMapping("/send-image-message")
+    public ResponseEntity<InstagramMessageResponse> sendImageMessage(@RequestBody MessageFileRequest messageRequest) {
+        try {
+            InstagramMessageResponse response = instagramService.sendImageMessage(messageRequest);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new InstagramMessageResponse("ERROR", e.getMessage()));
+        }
     }
 }
