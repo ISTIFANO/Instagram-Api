@@ -7,7 +7,13 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Message {
-    @JsonProperty
-    private Attachment message;
+    @JsonProperty("attachment")
+    private Attachment attachment;
+
+    public Message() {}
+    public Message(Attachment attachment) {
+        this.attachment = attachment;
+    }
+
 
 }

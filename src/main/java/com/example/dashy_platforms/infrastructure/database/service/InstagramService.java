@@ -2,7 +2,9 @@ package com.example.dashy_platforms.infrastructure.database.service;
 
 import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageMedia.FileRequestDto;
 import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
@@ -30,6 +32,9 @@ public class InstagramService implements IInstagramService {
 
     @Value("${instagram.graph.access.token:default-value}")
     private String accessToken;
+
+    @Value("${instagram.graph.page.access.token:default-value}")
+    private String pageaccessToken;
 
     @Value("${instagram.graph.page.id}")
     private String pageId;
@@ -211,7 +216,6 @@ public class InstagramService implements IInstagramService {
                 dbMessage.setSentAt(LocalDateTime.now());
                 dbMessage.setCreatedAt(LocalDateTime.now());
                 messageRepository.save(dbMessage);
-
                 return new InstagramMessageResponse(messageId, quickReplies.getRecipient().getId(), "SENT");
             } else {
                 dbMessage.setStatus("FAILED");
@@ -278,24 +282,91 @@ public class InstagramService implements IInstagramService {
     }
 
 
-    @Override
-    public AttachementResponse uploadAttachment(AttachmentRequest attachmentRequest) {
 
-        String url = String.format("https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s", facebookPageId, accessToken);
+
+    public InstagramMessageResponse sendImageMessage(AttachmentRequest messageRequest) {
+        try {
+            MessageEntity messageEntity = new MessageEntity();
+            messageEntity.setMessageType("image");
+            messageEntity.setSentAt(LocalDateTime.now());
+            messageEntity.setRecipientId(messageRequest.getRecipient().getId());
+            messageEntity.setStatus("PENDING");
+            messageEntity.setCreatedAt(LocalDateTime.now());
+            messageRepository.save(messageEntity);
+            AttachmentDto AttachmentDto = new AttachmentDto();
+            AttachmentDto.setMessage(messageRequest.getMessage());
+            AttachmentDto.setPlatform(messageRequest.getPlatform());
+
+
+            AttachementResponse attachement = this.uploadAttachment(AttachmentDto);
+
+            MessageFileRequest messageFileRequest = this.UploadFile(attachement,messageRequest.getRecipient() );
+
+
+            String url = "https://graph.facebook.com/v22.0/me/messages?access_token=" + accessToken;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<MessageFileRequest> request = new HttpEntity<>(messageFileRequest, headers);
+
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
+                messageEntity.setStatus("SENT");
+                messageRepository.save(messageEntity);
+                return new InstagramMessageResponse(messageId, messageRequest.getRecipient().getId(), "SENT");
+            } else {
+                messageEntity.setStatus("FAILED");
+                messageRepository.save(messageEntity);
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi du message");
+            }
+        } catch (Exception e) {
+            return new InstagramMessageResponse("ERROR", e.getMessage());
+        }
+    }
+    @Override
+    public AttachementResponse uploadAttachment(AttachmentDto attachmentRequest) {
+
+        System.out.println(attachmentRequest.toString());
+
+        String url = String.format("https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s", facebookPageId, pageaccessToken);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(accessToken);
-
-        HttpEntity<AttachmentRequest> request = new HttpEntity<>(attachmentRequest, headers);
+        headers.set("Authorization", "OAuth " + pageaccessToken);
+        HttpEntity<AttachmentDto> request = new HttpEntity<>(attachmentRequest, headers);
 
         RestTemplate restTemplate = new RestTemplate();
         ResponseEntity<AttachementResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, AttachementResponse.class);
 
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+        if(response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
             return new AttachementResponse(response.getBody().getAttachmentId());
         } else {
             throw new RuntimeException("Failed to upload attachment");
         }
     }
+
+    public MessageFileRequest UploadFile(AttachementResponse attachmentResponse, Recipient recipient) {
+        com.example.dashy_platforms.domaine.model.MessageMedia.Payload payload = new com.example.dashy_platforms.domaine.model.MessageMedia.Payload();
+        payload.setAttachmentId(String.valueOf(attachmentResponse.getAttachmentId()));
+        com.example.dashy_platforms.domaine.model.MessageMedia.Attachment attachment = new com.example.dashy_platforms.domaine.model.MessageMedia.Attachment();
+        attachment.setType("file");
+        attachment.setPayload(payload);
+        com.example.dashy_platforms.domaine.model.MessageMedia.Message message = new com.example.dashy_platforms.domaine.model.MessageMedia.Message();
+        message.setAttachment(attachment);
+        MessageFileRequest fileRequestDto = new MessageFileRequest();
+        fileRequestDto.setRecipient(recipient);
+        fileRequestDto.setPlatform("instagram");
+        fileRequestDto.setMessaging_type("RESPONSE");
+        fileRequestDto.setMessage(message);
+
+        return fileRequestDto;
+    }
+
+
+
 }

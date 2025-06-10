@@ -16,4 +16,6 @@ public class MessageFileRequest {
     private String messaging_type;
     @JsonProperty("platform")
     private String platform;
+
+
 }

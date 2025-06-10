@@ -8,11 +8,13 @@ import lombok.Setter;
 @Setter
 public class Attachment {
 
-    @JsonProperty("image")
-    private String image;
+    @JsonProperty("type")
+    private String type;
     @JsonProperty("payload")
-    private Payload payload;
-
+    private PayloadAttachement payloadAttachement;
+public Attachment(String type, PayloadAttachement payloadAttachement) {
+    this.type = type;
+}
 
 
 }
