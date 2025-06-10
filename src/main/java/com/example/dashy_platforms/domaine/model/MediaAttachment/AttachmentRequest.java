@@ -14,7 +14,7 @@ public class AttachmentRequest {
     private Recipient recipient;
     @JsonProperty("message")
     private Message message;
-    @JsonProperty("platform ")
+    @JsonProperty("platform")
     private String platform;
     public AttachmentRequest() {
     }

@@ -8,12 +8,11 @@ import lombok.Setter;
 @Setter
 public class Message {
     @JsonProperty("attachment")
-    private Attachment attachment;
+    private AttachmentMedia attachmentMedia;
 
     public Message() {}
-    public Message(Attachment attachment) {
-        this.attachment = attachment;
+    public Message(AttachmentMedia attachmentMedia) {
+        this.attachmentMedia = attachmentMedia;
     }
-
 
 }

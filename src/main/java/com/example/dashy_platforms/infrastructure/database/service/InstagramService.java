@@ -1,5 +1,6 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
+import com.example.dashy_platforms.domaine.helper.JsonFormat;
 import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
@@ -296,10 +297,13 @@ public class InstagramService implements IInstagramService {
             AttachmentDto AttachmentDto = new AttachmentDto();
             AttachmentDto.setMessage(messageRequest.getMessage());
             AttachmentDto.setPlatform(messageRequest.getPlatform());
-
+            JsonFormat jsonFormat = new JsonFormat();
+            jsonFormat.printJson(AttachmentDto);
 
             AttachementResponse attachement = this.uploadAttachment(AttachmentDto);
-
+JsonFormat jsonFormat2 = new JsonFormat();
+System.out.println("hsjdfhsihskfs");
+jsonFormat2.printJson(attachement);
             MessageFileRequest messageFileRequest = this.UploadFile(attachement,messageRequest.getRecipient() );
 
 
@@ -331,14 +335,14 @@ public class InstagramService implements IInstagramService {
     @Override
     public AttachementResponse uploadAttachment(AttachmentDto attachmentRequest) {
 
-        System.out.println(attachmentRequest.toString());
-
         String url = String.format("https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s", facebookPageId, pageaccessToken);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "OAuth " + pageaccessToken);
+        JsonFormat jsonFormat = new JsonFormat();
+        headers.set("Authorization", "OAuth2 " + pageaccessToken);
         HttpEntity<AttachmentDto> request = new HttpEntity<>(attachmentRequest, headers);
+        jsonFormat.printJson(request);
 
         RestTemplate restTemplate = new RestTemplate();
         ResponseEntity<AttachementResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, AttachementResponse.class);
@@ -354,7 +358,7 @@ public class InstagramService implements IInstagramService {
         com.example.dashy_platforms.domaine.model.MessageMedia.Payload payload = new com.example.dashy_platforms.domaine.model.MessageMedia.Payload();
         payload.setAttachmentId(String.valueOf(attachmentResponse.getAttachmentId()));
         com.example.dashy_platforms.domaine.model.MessageMedia.Attachment attachment = new com.example.dashy_platforms.domaine.model.MessageMedia.Attachment();
-        attachment.setType("file");
+        attachment.setType("image");
         attachment.setPayload(payload);
         com.example.dashy_platforms.domaine.model.MessageMedia.Message message = new com.example.dashy_platforms.domaine.model.MessageMedia.Message();
         message.setAttachment(attachment);
@@ -363,7 +367,8 @@ public class InstagramService implements IInstagramService {
         fileRequestDto.setPlatform("instagram");
         fileRequestDto.setMessaging_type("RESPONSE");
         fileRequestDto.setMessage(message);
-
+        JsonFormat jsonFormat = new JsonFormat();
+        jsonFormat.printJson(fileRequestDto);
         return fileRequestDto;
     }
 

@@ -1,5 +1,6 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
+import com.example.dashy_platforms.domaine.helper.JsonFormat;
 import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
@@ -104,12 +105,6 @@ private final InstagramService instagramService;
     public ResponseEntity<InstagramMessageResponse> sendImageMessage(
             @RequestBody AttachmentRequest messageRequest) {
         try {
-            System.out.println(messageRequest.getPlatform());
-
-            String requestJson = objectMapper.writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(messageRequest);
-            System.out.println("Request Body (JSON):\n" + requestJson);
-
             InstagramMessageResponse response = instagramService.sendImageMessage(messageRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
