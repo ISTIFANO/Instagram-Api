@@ -2,12 +2,14 @@ package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
 import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,9 +23,11 @@ import java.util.Set;
 public class InstagramController {
 
 private final InstagramService instagramService;
+    private final ObjectMapper objectMapper;
 
-    public InstagramController(InstagramService instagramService) {
+    public InstagramController(InstagramService instagramService, ObjectMapper objectMapper) {
         this.instagramService = instagramService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/sendmessage")
@@ -88,7 +92,7 @@ private final InstagramService instagramService;
     }
 
     @PostMapping("/upload-attachment")
-    public ResponseEntity<AttachementResponse> uploadAttachment(@RequestBody AttachmentRequest attachmentRequest) {
+    public ResponseEntity<AttachementResponse> uploadAttachment(@RequestBody AttachmentDto attachmentRequest) {
         try {
             AttachementResponse attachmentId = instagramService.uploadAttachment(attachmentRequest);
             return ResponseEntity.ok(attachmentId);
@@ -97,8 +101,15 @@ private final InstagramService instagramService;
         }
     }
     @PostMapping("/send-image-message")
-    public ResponseEntity<InstagramMessageResponse> sendImageMessage(@RequestBody MessageFileRequest messageRequest) {
+    public ResponseEntity<InstagramMessageResponse> sendImageMessage(
+            @RequestBody AttachmentRequest messageRequest) {
         try {
+            System.out.println(messageRequest.getPlatform());
+
+            String requestJson = objectMapper.writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(messageRequest);
+            System.out.println("Request Body (JSON):\n" + requestJson);
+
             InstagramMessageResponse response = instagramService.sendImageMessage(messageRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {

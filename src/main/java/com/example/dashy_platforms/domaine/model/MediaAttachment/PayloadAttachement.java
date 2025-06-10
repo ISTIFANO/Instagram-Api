@@ -6,10 +6,15 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class Payload {
+public class PayloadAttachement {
     @JsonProperty("url")
     private String url;
     @JsonProperty("is_reusable")
     private Boolean isReusable=true;
 
+    public PayloadAttachement(String url, Boolean isReusable) {
+        this.url = url;
+        this.isReusable = isReusable;
+    }
+    public PayloadAttachement() {}
 }
