@@ -9,31 +9,44 @@ import java.util.List;
 @Getter
 @Setter
 public class InstagramTokenResponse {
+    private List<TokenData> data;
 
-   private List<TokenData>  data;
+    public List<TokenData> getData() {
+        return data;
+    }
 
-   public  static  class TokenData{
+    public void setData(List<TokenData> data) {
+        this.data = data;
+    }
 
-       @JsonProperty("access_token")
-       private String accessToken;
+    public static class TokenData {
+        private String access_token;
+        private String user_id;
+        private String permissions;
 
-       @JsonProperty("user_id")
-       private String userId;
+        // Getters and setters
+        public String getAccess_token() {
+            return access_token;
+        }
 
-       private String permissions;
+        public void setAccess_token(String access_token) {
+            this.access_token = access_token;
+        }
 
+        public String getUser_id() {
+            return user_id;
+        }
 
-       public String getAccessToken() { return accessToken; }
-       public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+        public void setUser_id(String user_id) {
+            this.user_id = user_id;
+        }
 
-       public String getUserId() { return userId; }
-       public void setUserId(String userId) { this.userId = userId; }
+        public String getPermissions() {
+            return permissions;
+        }
 
-       public String getPermissions() { return permissions; }
-       public void setPermissions(String permissions) { this.permissions = permissions; }
-   }
-
-   public List<TokenData>  getData() { return data;
-   }
-    public void setData(List<TokenData>  data) { this.data = data; }
+        public void setPermissions(String permissions) {
+            this.permissions = permissions;
+        }
+    }
 }

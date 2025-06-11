@@ -3,10 +3,10 @@ package com.example.dashy_platforms.domaine.helper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class JsonFormat {
+public class JsoonFormat {
     private final ObjectMapper objectMapper;
 
-    public JsonFormat() {
+    public JsoonFormat() {
         this.objectMapper = new ObjectMapper();
     }
 

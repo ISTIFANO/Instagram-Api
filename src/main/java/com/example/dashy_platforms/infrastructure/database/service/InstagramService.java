@@ -1,26 +1,21 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
-import com.example.dashy_platforms.domaine.helper.JsonFormat;
+import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
-import com.example.dashy_platforms.domaine.model.MessageMedia.FileRequestDto;
 import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
-import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
-import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -93,8 +88,6 @@ public class InstagramService implements IInstagramService {
             return new InstagramMessageResponse("ERROR", e.getMessage());
         }
     }
-
-
     @Override
     public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
         try {
@@ -297,13 +290,13 @@ public class InstagramService implements IInstagramService {
             AttachmentDto AttachmentDto = new AttachmentDto();
             AttachmentDto.setMessage(messageRequest.getMessage());
             AttachmentDto.setPlatform(messageRequest.getPlatform());
-            JsonFormat jsonFormat = new JsonFormat();
-            jsonFormat.printJson(AttachmentDto);
+            JsoonFormat jsoonFormat = new JsoonFormat();
+            jsoonFormat.printJson(AttachmentDto);
 
             AttachementResponse attachement = this.uploadAttachment(AttachmentDto);
-JsonFormat jsonFormat2 = new JsonFormat();
+JsoonFormat jsoonFormat2 = new JsoonFormat();
 System.out.println("hsjdfhsihskfs");
-jsonFormat2.printJson(attachement);
+jsoonFormat2.printJson(attachement);
             MessageFileRequest messageFileRequest = this.UploadFile(attachement,messageRequest.getRecipient() );
 
 
@@ -339,10 +332,10 @@ jsonFormat2.printJson(attachement);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        JsonFormat jsonFormat = new JsonFormat();
+        JsoonFormat jsoonFormat = new JsoonFormat();
         headers.set("Authorization", "OAuth2 " + pageaccessToken);
         HttpEntity<AttachmentDto> request = new HttpEntity<>(attachmentRequest, headers);
-        jsonFormat.printJson(request);
+        jsoonFormat.printJson(request);
 
         RestTemplate restTemplate = new RestTemplate();
         ResponseEntity<AttachementResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, AttachementResponse.class);
@@ -367,8 +360,8 @@ jsonFormat2.printJson(attachement);
         fileRequestDto.setPlatform("instagram");
         fileRequestDto.setMessaging_type("RESPONSE");
         fileRequestDto.setMessage(message);
-        JsonFormat jsonFormat = new JsonFormat();
-        jsonFormat.printJson(fileRequestDto);
+        JsoonFormat jsoonFormat = new JsoonFormat();
+        jsoonFormat.printJson(fileRequestDto);
         return fileRequestDto;
     }
 
