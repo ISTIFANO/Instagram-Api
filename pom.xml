@@ -38,7 +38,7 @@
          <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
-                <version>1.4.11</version>
+             <version>1.5.18</version> <!-- Match logback-core version -->
             </dependency>
 
 
@@ -104,5 +104,19 @@
             </plugin>
         </plugins>
     </build>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>1.5.18</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-core</artifactId>
+                <version>1.5.18</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 </project>

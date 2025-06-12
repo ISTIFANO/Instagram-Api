@@ -1,14 +1,19 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
+import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -17,9 +22,11 @@ import java.util.Set;
 public class InstagramController {
 
 private final InstagramService instagramService;
+    private final ObjectMapper objectMapper;
 
-    public InstagramController(InstagramService instagramService) {
+    public InstagramController(InstagramService instagramService, ObjectMapper objectMapper) {
         this.instagramService = instagramService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/sendmessage")
@@ -81,5 +88,33 @@ private final InstagramService instagramService;
     public ResponseEntity<Set<UserListInfoResponse>> getMessagedUsers() {
         Set<UserListInfoResponse> users = instagramService.listMessagedUsers();
         return ResponseEntity.ok(users);
+    }
+
+    @PostMapping("/upload-attachment")
+    public ResponseEntity<AttachementResponse> uploadAttachment(@RequestBody AttachmentDto attachmentRequest) {
+        try {
+            AttachementResponse attachmentId = instagramService.uploadAttachment(attachmentRequest);
+            return ResponseEntity.ok(attachmentId);
+        } catch (Exception e) {
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    @PostMapping("/send-image-message")
+    public ResponseEntity<InstagramMessageResponse> sendImageMessage(
+            @RequestBody AttachmentRequest messageRequest ) {
+        try {
+            InstagramMessageResponse response = instagramService.sendImageMessage(messageRequest);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new InstagramMessageResponse("ERROR", e.getMessage()));
+        }
+    }
+    @PostMapping("/send-reaction")
+    public ResponseEntity<InstagramMessageResponse> sendReaction(
+            @RequestBody ReactionContainer request) {
+
+        InstagramMessageResponse response = instagramService.sendReaction(request);
+        return ResponseEntity.ok(response);
     }
 }

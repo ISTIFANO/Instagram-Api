@@ -1,20 +1,22 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
+import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
+import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
-import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
+import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
-import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -28,8 +30,14 @@ public class InstagramService implements IInstagramService {
     @Value("${instagram.graph.access.token:default-value}")
     private String accessToken;
 
+    @Value("${instagram.graph.page.access.token:default-value}")
+    private String pageaccessToken;
+
     @Value("${instagram.graph.page.id}")
     private String pageId;
+
+    @Value("${instagram.graph.facebookpage.id}")
+    private String facebookPageId;
 
     @Autowired
     private MessageRepository messageRepository;
@@ -53,7 +61,6 @@ public class InstagramService implements IInstagramService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("recipient", Map.of("id", messageRequest.getRecipient().getId()));
             requestBody.put("message", Map.of("text", messageRequest.getMessage().getText()));
-
             String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
             HttpHeaders headers = new HttpHeaders();
@@ -82,8 +89,6 @@ public class InstagramService implements IInstagramService {
             return new InstagramMessageResponse("ERROR", e.getMessage());
         }
     }
-
-
     @Override
     public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
         try {
@@ -206,7 +211,6 @@ public class InstagramService implements IInstagramService {
                 dbMessage.setSentAt(LocalDateTime.now());
                 dbMessage.setCreatedAt(LocalDateTime.now());
                 messageRepository.save(dbMessage);
-
                 return new InstagramMessageResponse(messageId, quickReplies.getRecipient().getId(), "SENT");
             } else {
                 dbMessage.setStatus("FAILED");
@@ -226,12 +230,11 @@ public class InstagramService implements IInstagramService {
     }
 
 
-
-
     @Override
     public void processPendingMessages() {
 
     }
+
     @Override
     public Set<UserListInfoResponse> listMessagedUsers() {
         Set<UserListInfoResponse> users = new HashSet<>();
@@ -274,5 +277,116 @@ public class InstagramService implements IInstagramService {
     }
 
 
+
+
+    public InstagramMessageResponse sendImageMessage(AttachmentRequest messageRequest) {
+        try {
+            MessageEntity messageEntity = new MessageEntity();
+            messageEntity.setMessageType("image");
+            messageEntity.setSentAt(LocalDateTime.now());
+            messageEntity.setRecipientId(messageRequest.getRecipient().getId());
+            messageEntity.setStatus("PENDING");
+            messageEntity.setCreatedAt(LocalDateTime.now());
+            messageRepository.save(messageEntity);
+            AttachmentDto AttachmentDto = new AttachmentDto();
+            AttachmentDto.setMessage(messageRequest.getMessage());
+            AttachmentDto.setPlatform(messageRequest.getPlatform());
+            JsoonFormat jsoonFormat = new JsoonFormat();
+            jsoonFormat.printJson(AttachmentDto);
+
+            AttachementResponse attachement = this.uploadAttachment(AttachmentDto);
+            MessageFileRequest messageFileRequest = this.UploadFile(attachement,messageRequest.getRecipient() );
+
+
+            String url = "https://graph.facebook.com/v22.0/me/messages?access_token=" + accessToken;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<MessageFileRequest> request = new HttpEntity<>(messageFileRequest, headers);
+
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
+                messageEntity.setStatus("SENT");
+                messageRepository.save(messageEntity);
+                return new InstagramMessageResponse(messageId, messageRequest.getRecipient().getId(), "SENT");
+            } else {
+                messageEntity.setStatus("FAILED");
+                messageRepository.save(messageEntity);
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi du message");
+            }
+        } catch (Exception e) {
+            return new InstagramMessageResponse("ERROR", e.getMessage());
+        }
+    }
+    @Override
+    public AttachementResponse uploadAttachment(AttachmentDto attachmentRequest) {
+
+        String url = String.format("https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s", facebookPageId, pageaccessToken);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        JsoonFormat jsoonFormat = new JsoonFormat();
+        headers.set("Authorization", "OAuth2 " + pageaccessToken);
+        HttpEntity<AttachmentDto> request = new HttpEntity<>(attachmentRequest, headers);
+        jsoonFormat.printJson(request);
+
+        RestTemplate restTemplate = new RestTemplate();
+        ResponseEntity<AttachementResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, AttachementResponse.class);
+
+        if(response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            return new AttachementResponse(response.getBody().getAttachmentId());
+        } else {
+            throw new RuntimeException("Failed to upload attachment");
+        }
+    }
+
+    public MessageFileRequest UploadFile(AttachementResponse attachmentResponse, Recipient recipient) {
+        com.example.dashy_platforms.domaine.model.MessageMedia.Payload payload = new com.example.dashy_platforms.domaine.model.MessageMedia.Payload();
+        payload.setAttachmentId(String.valueOf(attachmentResponse.getAttachmentId()));
+        com.example.dashy_platforms.domaine.model.MessageMedia.Attachment attachment = new com.example.dashy_platforms.domaine.model.MessageMedia.Attachment();
+        attachment.setType("image");
+        attachment.setPayload(payload);
+        com.example.dashy_platforms.domaine.model.MessageMedia.Message message = new com.example.dashy_platforms.domaine.model.MessageMedia.Message();
+        message.setAttachment(attachment);
+        MessageFileRequest fileRequestDto = new MessageFileRequest();
+        fileRequestDto.setRecipient(recipient);
+        fileRequestDto.setPlatform("instagram");
+        fileRequestDto.setMessaging_type("RESPONSE");
+        fileRequestDto.setMessage(message);
+        JsoonFormat jsoonFormat = new JsoonFormat();
+        jsoonFormat.printJson(fileRequestDto);
+        return fileRequestDto;
+    }
+
+    public InstagramMessageResponse sendReaction(ReactionContainer request) {
+        try {
+            String url = String.format("%s/v23.0/me/messages", graphApiUrl);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<ReactionContainer> httpEntity = new HttpEntity<>(request, headers);
+            RestTemplate restTemplate = new RestTemplate();
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Map.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
+
+                return new InstagramMessageResponse(messageId, request.getRecipient().getId(), "SENT");
+            } else {
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi de la réaction");
+            }
+
+        } catch (Exception e) {
+            return new InstagramMessageResponse("ERROR", e.getMessage());
+        }
+    }
 
 }
