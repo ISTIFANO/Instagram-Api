@@ -4,8 +4,8 @@ import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
-import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
+import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -102,19 +101,20 @@ private final InstagramService instagramService;
     }
     @PostMapping("/send-image-message")
     public ResponseEntity<InstagramMessageResponse> sendImageMessage(
-            @RequestBody AttachmentRequest messageRequest) {
+            @RequestBody AttachmentRequest messageRequest ) {
         try {
-            System.out.println(messageRequest.getPlatform());
-
-            String requestJson = objectMapper.writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(messageRequest);
-            System.out.println("Request Body (JSON):\n" + requestJson);
-
             InstagramMessageResponse response = instagramService.sendImageMessage(messageRequest);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new InstagramMessageResponse("ERROR", e.getMessage()));
         }
+    }
+    @PostMapping("/send-reaction")
+    public ResponseEntity<InstagramMessageResponse> sendReaction(
+            @RequestBody ReactionContainer request) {
+
+        InstagramMessageResponse response = instagramService.sendReaction(request);
+        return ResponseEntity.ok(response);
     }
 }
