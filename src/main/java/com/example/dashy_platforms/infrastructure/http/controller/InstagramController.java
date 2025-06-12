@@ -4,6 +4,7 @@ import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageSticker.InstagramStickerRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
@@ -115,6 +116,14 @@ private final InstagramService instagramService;
             @RequestBody ReactionContainer request) {
 
         InstagramMessageResponse response = instagramService.sendReaction(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/send-sticker")
+    public ResponseEntity<InstagramMessageResponse> sendSticker(
+            @RequestBody InstagramStickerRequest request) {
+
+        InstagramMessageResponse response = instagramService.sendSticker(request);
         return ResponseEntity.ok(response);
     }
 }
