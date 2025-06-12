@@ -12,4 +12,5 @@ public class InstagramMessaging {
     private Long timestamp;
     private InstagramReadReceipt read;
    private Object message;
+
 }

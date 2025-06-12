@@ -5,6 +5,7 @@ import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResp
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
+import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
@@ -100,7 +101,7 @@ private final InstagramService instagramService;
     }
     @PostMapping("/send-image-message")
     public ResponseEntity<InstagramMessageResponse> sendImageMessage(
-            @RequestBody AttachmentRequest messageRequest) {
+            @RequestBody AttachmentRequest messageRequest ) {
         try {
             InstagramMessageResponse response = instagramService.sendImageMessage(messageRequest);
             return ResponseEntity.ok(response);
@@ -108,5 +109,12 @@ private final InstagramService instagramService;
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new InstagramMessageResponse("ERROR", e.getMessage()));
         }
+    }
+    @PostMapping("/send-reaction")
+    public ResponseEntity<InstagramMessageResponse> sendReaction(
+            @RequestBody ReactionContainer request) {
+
+        InstagramMessageResponse response = instagramService.sendReaction(request);
+        return ResponseEntity.ok(response);
     }
 }

@@ -7,6 +7,7 @@ import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
 import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
+import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
@@ -294,9 +295,6 @@ public class InstagramService implements IInstagramService {
             jsoonFormat.printJson(AttachmentDto);
 
             AttachementResponse attachement = this.uploadAttachment(AttachmentDto);
-JsoonFormat jsoonFormat2 = new JsoonFormat();
-System.out.println("hsjdfhsihskfs");
-jsoonFormat2.printJson(attachement);
             MessageFileRequest messageFileRequest = this.UploadFile(attachement,messageRequest.getRecipient() );
 
 
@@ -365,6 +363,30 @@ jsoonFormat2.printJson(attachement);
         return fileRequestDto;
     }
 
+    public InstagramMessageResponse sendReaction(ReactionContainer request) {
+        try {
+            String url = String.format("%s/v23.0/me/messages", graphApiUrl);
 
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<ReactionContainer> httpEntity = new HttpEntity<>(request, headers);
+            RestTemplate restTemplate = new RestTemplate();
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Map.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
+
+                return new InstagramMessageResponse(messageId, request.getRecipient().getId(), "SENT");
+            } else {
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi de la réaction");
+            }
+
+        } catch (Exception e) {
+            return new InstagramMessageResponse("ERROR", e.getMessage());
+        }
+    }
 
 }
