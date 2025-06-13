@@ -16,6 +16,11 @@ public class InstagramTemplateRequest {
     @JsonProperty("message")
     private Message message;
 
+    public InstagramTemplateRequest() {
 
-
+    }
+    public InstagramTemplateRequest(Recipient recipient, Message message) {
+        this.recipient = recipient;
+        this.message = message;
+    }
 }

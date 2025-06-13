@@ -11,8 +11,10 @@ import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,12 +44,25 @@ private final InstagramService instagramService;
             return ResponseEntity.badRequest().body(resp);
         }
     }
-    @PostMapping("/sendtemplate")
+    @PostMapping("/sendtemplateTest")
+    public ResponseEntity<?> testUpload(
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("recipient_id") String recipientId,
+            @RequestPart("message") String messageJson
+    ) {
+        System.out.println("Recipient ID: " + recipientId);
+        System.out.println("Message JSON: " + messageJson);
+        System.out.println("File name: " + file.getOriginalFilename());
+        return ResponseEntity.ok("Upload Successful");
+    }
+    @PostMapping(value = "/sendtemplate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<InstagramMessageResponse> sendTemplateMessage(
-            @RequestParam String recipient_id,
-            @RequestBody InstagramTemplateRequest message) {
+            @RequestPart("recipient_id") String recipient_id,
+            @RequestPart("file") MultipartFile file,
+            @RequestPart InstagramTemplateRequest message) throws JsonProcessingException {
+        String attachmentId = instagramService.uploadMediaAndGetAttachmentId(file);
 
-        InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, message);
+        InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, message, attachmentId);
         if ("SENT".equals(response.getStatus())) {
             return ResponseEntity.ok(response);
         } else {
