@@ -15,6 +15,7 @@ import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_repl
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -442,16 +443,31 @@ public class InstagramService implements IInstagramService {
             return new InstagramMessageResponse("ERROR", e.getMessage());
         }
     }
-    public String uploadMediaAndGetAttachmentId(MultipartFile file) {
-        String url = String.format("https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s", facebookPageId, pageaccessToken);
+    public String uploadMediaAndGetAttachmentId(MultipartFile file) throws JsonProcessingException {
+        String url = String.format(
+                "https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s",
+                facebookPageId,
+                pageaccessToken
+        );
 
         String mediaType = getMediaType(file.getContentType());
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("is_reusable", true);
+
+        Map<String, Object> attachmentMap = new HashMap<>();
+        attachmentMap.put("type", mediaType);
+        attachmentMap.put("payload", payloadMap);
+
+        Map<String, Object> messageMap = new HashMap<>();
+        messageMap.put("attachment", attachmentMap);
+
+        ObjectMapper mapper = new ObjectMapper();
+        String messageJson = mapper.writeValueAsString(messageMap);
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("platform", "instagram");
         body.add("filedata", file.getResource());
-        body.add("message", String.format(
-                    "{\"attachment\":{\"type\":\"%s\",\"payload\":{\"is_reusable\":true}}}", mediaType));
+        body.add("message", messageJson);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -478,7 +494,7 @@ public class InstagramService implements IInstagramService {
     }
 
     public InstagramMessageResponse sendMediaByAttachmentId(String recipientId, String attachmentId, String mediaType) {
-        String url = String.format("%s/v18.0/me/messages", graphApiUrl);
+        String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
         System.out.println(recipientId);
         System.out.println(attachmentId);
@@ -487,16 +503,13 @@ public class InstagramService implements IInstagramService {
         Map<String, Object> payload = Map.of(
                 "attachment_id", attachmentId
         );
-
         Map<String, Object> attachment = Map.of(
-                "type", "MEDIA_SHARE",
+                "type", mediaType,
                 "payload", payload
         );
-
         Map<String, Object> message = Map.of(
                 "attachment", attachment
         );
-
         Map<String, Object> body = Map.of(
                 "recipient", Map.of("id", recipientId),
                 "message", message
@@ -521,7 +534,7 @@ public class InstagramService implements IInstagramService {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(pageaccessToken);
+            headers.setBearerAuth(accessToken);
 
             ObjectMapper objectMapper = new ObjectMapper();
 
