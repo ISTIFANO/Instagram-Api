@@ -5,7 +5,9 @@ import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageMedia.InstagramMediaMessageRequest;
 import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest;
+import com.example.dashy_platforms.domaine.model.MessageSticker.InstagramStickerRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
@@ -13,14 +15,26 @@ import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_repl
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.logging.Logger;
+
 @Service
 public class InstagramService implements IInstagramService {
 
@@ -38,6 +52,8 @@ public class InstagramService implements IInstagramService {
 
     @Value("${instagram.graph.facebookpage.id}")
     private String facebookPageId;
+    @Value("${application.host}")
+    private String hosturl;
 
     @Autowired
     private MessageRepository messageRepository;
@@ -89,6 +105,7 @@ public class InstagramService implements IInstagramService {
             return new InstagramMessageResponse("ERROR", e.getMessage());
         }
     }
+
     @Override
     public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
         try {
@@ -277,8 +294,6 @@ public class InstagramService implements IInstagramService {
     }
 
 
-
-
     public InstagramMessageResponse sendImageMessage(AttachmentRequest messageRequest) {
         try {
             MessageEntity messageEntity = new MessageEntity();
@@ -291,11 +306,10 @@ public class InstagramService implements IInstagramService {
             AttachmentDto AttachmentDto = new AttachmentDto();
             AttachmentDto.setMessage(messageRequest.getMessage());
             AttachmentDto.setPlatform(messageRequest.getPlatform());
-            JsoonFormat jsoonFormat = new JsoonFormat();
-            jsoonFormat.printJson(AttachmentDto);
+
 
             AttachementResponse attachement = this.uploadAttachment(AttachmentDto);
-            MessageFileRequest messageFileRequest = this.UploadFile(attachement,messageRequest.getRecipient() );
+            MessageFileRequest messageFileRequest = this.UploadFile(attachement, messageRequest.getRecipient());
 
 
             String url = "https://graph.facebook.com/v22.0/me/messages?access_token=" + accessToken;
@@ -323,6 +337,7 @@ public class InstagramService implements IInstagramService {
             return new InstagramMessageResponse("ERROR", e.getMessage());
         }
     }
+
     @Override
     public AttachementResponse uploadAttachment(AttachmentDto attachmentRequest) {
 
@@ -338,7 +353,7 @@ public class InstagramService implements IInstagramService {
         RestTemplate restTemplate = new RestTemplate();
         ResponseEntity<AttachementResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, AttachementResponse.class);
 
-        if(response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
             return new AttachementResponse(response.getBody().getAttachmentId());
         } else {
             throw new RuntimeException("Failed to upload attachment");
@@ -378,7 +393,6 @@ public class InstagramService implements IInstagramService {
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String messageId = (String) response.getBody().get("message_id");
-
                 return new InstagramMessageResponse(messageId, request.getRecipient().getId(), "SENT");
             } else {
                 return new InstagramMessageResponse("FAILED", "Échec de l'envoi de la réaction");
@@ -389,4 +403,185 @@ public class InstagramService implements IInstagramService {
         }
     }
 
+    public InstagramMessageResponse sendSticker(InstagramStickerRequest request) {
+        try {
+            MessageEntity messageEntity = new MessageEntity();
+            messageEntity.setMessageType("sticker");
+            messageEntity.setRecipientId(request.getRecipient().getId());
+            messageEntity.setMessageContent("Sticker: " + request.getMessage().getAttachment().getType());
+            messageEntity.setStatus("PENDING");
+            messageEntity.setCreatedAt(LocalDateTime.now());
+            messageEntity.setSentAt(LocalDateTime.now());
+            MessageEntity dbMessage = messageRepository.save(messageEntity);
+
+            String url = String.format("%s/v23.0/me/messages", graphApiUrl);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            HttpEntity<InstagramStickerRequest> entity = new HttpEntity<>(request, headers);
+            RestTemplate restTemplate = new RestTemplate();
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                String messageId = (String) response.getBody().get("message_id");
+
+                dbMessage.setStatus("SENT");
+                messageRepository.save(dbMessage);
+
+                return new InstagramMessageResponse(messageId, request.getRecipient().getId(), "SENT");
+            } else {
+                dbMessage.setStatus("FAILED");
+                messageRepository.save(dbMessage);
+
+                return new InstagramMessageResponse("FAILED", "Échec de l'envoi du sticker");
+            }
+
+        } catch (Exception e) {
+            return new InstagramMessageResponse("ERROR", e.getMessage());
+        }
+    }
+    public String uploadMediaAndGetAttachmentId(MultipartFile file) throws JsonProcessingException {
+        String url = String.format(
+                "https://graph.facebook.com/v22.0/%s/message_attachments?access_token=%s",
+                facebookPageId,
+                pageaccessToken
+        );
+
+        String mediaType = getMediaType(file.getContentType());
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("is_reusable", true);
+
+        Map<String, Object> attachmentMap = new HashMap<>();
+        attachmentMap.put("type", mediaType);
+        attachmentMap.put("payload", payloadMap);
+
+        Map<String, Object> messageMap = new HashMap<>();
+        messageMap.put("attachment", attachmentMap);
+
+        ObjectMapper mapper = new ObjectMapper();
+        String messageJson = mapper.writeValueAsString(messageMap);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("platform", "instagram");
+        body.add("filedata", file.getResource());
+        body.add("message", messageJson);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        headers.setBearerAuth(pageaccessToken);
+
+        try {
+            ResponseEntity<JsonNode> resp = new RestTemplate()
+                    .postForEntity(url, new HttpEntity<>(body, headers), JsonNode.class);
+
+            if (resp.getStatusCode() == HttpStatus.OK && resp.getBody() != null) {
+                JsonNode attachmentIdNode = resp.getBody().get("attachment_id");
+                if (attachmentIdNode != null) {
+                    return attachmentIdNode.asText();
+                }
+            }
+
+            String errorMsg = String.format("Upload failed - Status: %s, Body: %s",
+                    resp.getStatusCode(), resp.getBody());
+            throw new RuntimeException(errorMsg);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Media upload failed: " + e.getMessage(), e);
+        }
+    }
+
+    public InstagramMessageResponse sendMediaByAttachmentId(String recipientId, String attachmentId, String mediaType) {
+        String url = String.format("%s/v22.0/me/messages", graphApiUrl);
+
+        System.out.println(recipientId);
+        System.out.println(attachmentId);
+        System.out.println(mediaType);
+
+        Map<String, Object> payload = Map.of(
+                "attachment_id", attachmentId
+        );
+        Map<String, Object> attachment = Map.of(
+                "type", mediaType,
+                "payload", payload
+        );
+        Map<String, Object> message = Map.of(
+                "attachment", attachment
+        );
+        Map<String, Object> body = Map.of(
+                "recipient", Map.of("id", recipientId),
+                "message", message
+        );
+        JsoonFormat jsoonFormat = new JsoonFormat();
+        jsoonFormat.printJson(body);
+        MessageEntity msg = new MessageEntity();
+        msg.setRecipientId(recipientId);
+        msg.setMessageType(mediaType);
+        msg.setMessageContent("attachment_id:" + attachmentId);
+        msg.setStatus("PENDING");
+        LocalDateTime now = LocalDateTime.now();
+        msg.setCreatedAt(now);
+        msg.setSentAt(now);
+
+        try {
+            messageRepository.save(msg);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to save message entity: " + e.getMessage(), e);
+        }
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(accessToken);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            String jsonBody = objectMapper.writeValueAsString(body);
+            HttpEntity<String> req = new HttpEntity<>(jsonBody, headers);
+
+            RestTemplate rest = new RestTemplate();
+            ResponseEntity<JsonNode> resp = rest.postForEntity(url, req, JsonNode.class);
+
+            if (resp.getStatusCode() == HttpStatus.OK && resp.getBody() != null) {
+                JsonNode messageIdNode = resp.getBody().get("message_id");
+                if (messageIdNode != null) {
+                    String messageId = messageIdNode.asText();
+                    msg.setStatus("SENT");
+                    msg.setMessageContent(attachmentId);
+                    messageRepository.save(msg);
+
+                    return new InstagramMessageResponse(messageId, recipientId, "SENT");
+                }
+            }
+            msg.setStatus("FAILED");
+            messageRepository.save(msg);
+
+            String errorMsg = String.format("API call failed - Status: %s, Body: %s",
+                    resp.getStatusCode(), resp.getBody());
+            return new InstagramMessageResponse("FAILED", errorMsg);
+
+        } catch (Exception e) {
+            msg.setStatus("ERROR");
+            try {
+                messageRepository.save(msg);
+            } catch (Exception saveEx) {
+                System.err.println("Failed to update message status: " + saveEx.getMessage());
+            }
+
+            return new InstagramMessageResponse("ERROR", "Send failed: " + e.getMessage());
+        }
+    }
+    private String getMediaType(String contentType) {
+        if (contentType == null) {
+            throw new IllegalArgumentException("Content type is null");
+        }
+
+        if (contentType.startsWith("image/")) return "image";
+        if (contentType.startsWith("audio/")) return "audio";
+        if (contentType.startsWith("video/")) return "video";
+
+        throw new IllegalArgumentException("Unsupported media type: " + contentType);
+    }
 }

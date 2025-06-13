@@ -4,6 +4,8 @@ import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
+import com.example.dashy_platforms.domaine.model.MessageMedia.InstagramMediaMessageRequest;
+import com.example.dashy_platforms.domaine.model.MessageSticker.InstagramStickerRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
@@ -13,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Set;
 
@@ -116,5 +119,47 @@ private final InstagramService instagramService;
 
         InstagramMessageResponse response = instagramService.sendReaction(request);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/send-sticker")
+    public ResponseEntity<InstagramMessageResponse> sendSticker(
+            @RequestBody InstagramStickerRequest request) {
+
+        InstagramMessageResponse response = instagramService.sendSticker(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/send-media")
+    public ResponseEntity<InstagramMessageResponse> uploadAndSend(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("recipientId") String recipientId) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(new InstagramMessageResponse("ERROR", "File is empty"));
+            }
+
+            String attachmentId = instagramService.uploadMediaAndGetAttachmentId(file);
+            String mediaType = getMediaType(file.getContentType());
+            InstagramMessageResponse resp = instagramService.sendMediaByAttachmentId(recipientId, attachmentId, mediaType);
+            return ResponseEntity.ok(resp);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(new InstagramMessageResponse("ERROR", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new InstagramMessageResponse("ERROR", e.getMessage()));
+        }
+    }
+    private String getMediaType(String contentType) {
+        if (contentType == null) {
+            throw new IllegalArgumentException("Content type is null");
+        }
+
+        if (contentType.startsWith("image/")) return "image";
+        if (contentType.startsWith("audio/")) return "audio";
+        if (contentType.startsWith("video/")) return "video";
+
+        throw new IllegalArgumentException("Unsupported media type: " + contentType);
     }
 }
