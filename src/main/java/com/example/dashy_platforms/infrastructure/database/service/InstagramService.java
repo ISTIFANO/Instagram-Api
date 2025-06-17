@@ -4,6 +4,8 @@ import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.BroadcastMessage.Conversation;
 import com.example.dashy_platforms.domaine.model.BroadcastMessage.ConversationResponse;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.Message;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessagesResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
@@ -611,6 +613,24 @@ public class InstagramService implements IInstagramService {
             return Collections.emptyList();
         } catch (Exception e) {
             log.error("Error fetching conversations: ", e);
+            return Collections.emptyList();
+        }
+    }
+
+    public List<Message> getConversationMessages(String conversationId) {
+        try {
+            String url = String.format("%s/%s/messages?fields=from,to,message,created_time,id&access_token=%s",
+                    graphApiUrl, conversationId, accessToken);
+
+            MessagesResponse response = restTemplate.getForObject(url, MessagesResponse.class);
+
+            if (response != null && response.getData() != null) {
+                return response.getData();
+            }
+
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.error("Error fetching messages for conversation {}: ", conversationId, e);
             return Collections.emptyList();
         }
     }
