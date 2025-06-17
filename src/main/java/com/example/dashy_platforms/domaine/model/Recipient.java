@@ -13,4 +13,6 @@ public class Recipient {
     public Recipient(String id) {
         this.id = id;
     }
+
+    public Recipient() {}
 }

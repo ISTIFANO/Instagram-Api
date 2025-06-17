@@ -382,8 +382,6 @@ public class InstagramService implements IInstagramService {
         fileRequestDto.setPlatform("instagram");
         fileRequestDto.setMessaging_type("RESPONSE");
         fileRequestDto.setMessage(message);
-        JsoonFormat jsoonFormat = new JsoonFormat();
-        jsoonFormat.printJson(fileRequestDto);
         return fileRequestDto;
     }
 
