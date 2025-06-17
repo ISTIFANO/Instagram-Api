@@ -10,12 +10,15 @@ import java.beans.ConstructorProperties;
 @Setter
 public class InstagramTemplateRequest {
 
-    @JsonProperty("recipient")
     private Recipient recipient;
 
-    @JsonProperty("message")
     private Message message;
 
+    public InstagramTemplateRequest() {
 
-
+    }
+    public InstagramTemplateRequest(Recipient recipient, Message message) {
+        this.recipient = recipient;
+        this.message = message;
+    }
 }

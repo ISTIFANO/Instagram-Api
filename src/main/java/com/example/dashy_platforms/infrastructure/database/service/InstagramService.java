@@ -107,12 +107,21 @@ public class InstagramService implements IInstagramService {
     }
 
     @Override
-    public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
+    public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData , String attachmentId) {
         try {
             MessageEntity dbMessage = messageRepository.save(new MessageEntity());
 
-            String url = String.format("%s/v22.0/me/messages", graphApiUrl);
+            if (templateData != null &&
+                    templateData.getMessage() != null &&
+                    templateData.getMessage().getAttachment() != null &&
+                    templateData.getMessage().getAttachment().getPayload() != null &&
+                    templateData.getMessage().getAttachment().getPayload().getElements() != null) {
 
+                for (ElementModel element : templateData.getMessage().getAttachment().getPayload().getElements()) {
+                    element.setAttachment_id(attachmentId);
+                }
+            }
+            String url = String.format("%s/v22.0/me/messages", graphApiUrl);
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("recipient", Map.of("id", recipientId));
             requestBody.put("message", templateData.getMessage());
@@ -373,8 +382,6 @@ public class InstagramService implements IInstagramService {
         fileRequestDto.setPlatform("instagram");
         fileRequestDto.setMessaging_type("RESPONSE");
         fileRequestDto.setMessage(message);
-        JsoonFormat jsoonFormat = new JsoonFormat();
-        jsoonFormat.printJson(fileRequestDto);
         return fileRequestDto;
     }
 
