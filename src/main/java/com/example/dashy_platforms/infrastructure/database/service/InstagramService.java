@@ -2,6 +2,8 @@ package com.example.dashy_platforms.infrastructure.database.service;
 
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.Conversation;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.ConversationResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
@@ -18,6 +20,7 @@ import com.example.dashy_platforms.infrastructure.database.repositeries.MessageR
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -34,7 +37,8 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Logger;
-
+import java.util.stream.Collectors;
+@Slf4j
 @Service
 public class InstagramService implements IInstagramService {
 
@@ -590,5 +594,24 @@ public class InstagramService implements IInstagramService {
         if (contentType.startsWith("video/")) return "video";
 
         throw new IllegalArgumentException("Unsupported media type: " + contentType);
+    }
+    public List<String> getActiveConversations() {
+        try {
+            String url = String.format("%s/%s/conversations?platform=instagram&access_token=%s",
+                   graphApiUrl, pageId, accessToken);
+
+            ConversationResponse response = restTemplate.getForObject(url, ConversationResponse.class);
+
+            if (response != null && response.getData() != null) {
+                return response.getData().stream()
+                        .map(Conversation::getId)
+                        .collect(Collectors.toList());
+            }
+
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.error("Error fetching conversations: ", e);
+            return Collections.emptyList();
+        }
     }
 }
