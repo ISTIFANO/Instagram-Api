@@ -36,6 +36,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Logger;
@@ -633,5 +635,42 @@ public class InstagramService implements IInstagramService {
             log.error("Error fetching messages for conversation {}: ", conversationId, e);
             return Collections.emptyList();
         }
+    }
+
+    public boolean isConversationActive(List<Message> messages) {
+        if (messages.isEmpty()) {
+            return false;
+        }
+        Message lastMessage = messages.get(0);
+        try {
+            Instant lastMessageTime = Instant.parse(lastMessage.getCreatedTime());
+            Instant now = Instant.now();
+            Duration timeDifference = Duration.between(lastMessageTime, now);
+            return timeDifference.toHours() < 24;
+        } catch (Exception e) {
+            log.error("Error parsing message time: ", e);
+            return false;
+        }
+    }
+
+    public Set<String> getActiveUsers() {
+        List<String> conversations = getActiveConversations();
+        Set<String> activeUsers = new HashSet<>();
+
+        for (String conversationId : conversations) {
+            List<Message> messages = getConversationMessages(conversationId);
+
+            if (isConversationActive(messages)) {
+                messages.stream()
+                        .filter(msg -> msg.getFrom() != null && !isPageMessage(msg.getFrom().getId()))
+                        .forEach(msg -> activeUsers.add(msg.getFrom().getId()));
+            }
+        }
+
+        log.info("Found {} active users", activeUsers.size());
+        return activeUsers;
+    }
+    private boolean isPageMessage(String fromId) {
+        return pageId.equals(fromId);
     }
 }
