@@ -2,10 +2,8 @@ package com.example.dashy_platforms.infrastructure.database.service;
 
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.*;
-import com.example.dashy_platforms.domaine.model.BroadcastMessage.Conversation;
-import com.example.dashy_platforms.domaine.model.BroadcastMessage.ConversationResponse;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.*;
 import com.example.dashy_platforms.domaine.model.BroadcastMessage.Message;
-import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessagesResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
@@ -641,14 +639,15 @@ public class InstagramService implements IInstagramService {
         if (messages.isEmpty()) {
             return false;
         }
+
         Message lastMessage = messages.get(0);
         try {
-            Instant lastMessageTime = Instant.parse(lastMessage.getCreatedTime());
+            String fixedDate = lastMessage.getCreatedTime().replaceAll("(\\+\\d{2})(\\d{2})$", "$1:$2");
+            Instant lastMessageTime = Instant.parse(fixedDate);
             Instant now = Instant.now();
-            Duration timeDifference = Duration.between(lastMessageTime, now);
-            return timeDifference.toHours() < 24;
+            return Duration.between(lastMessageTime, now).toHours() < 24;
         } catch (Exception e) {
-            log.error("Error parsing message time: ", e);
+            log.error("Error parsing message time: {}", lastMessage.getCreatedTime());
             return false;
         }
     }
@@ -673,4 +672,126 @@ public class InstagramService implements IInstagramService {
     private boolean isPageMessage(String fromId) {
         return pageId.equals(fromId);
     }
+    public SendMessageResponse sendTextMessage(String userId, String messageText) {
+        try {
+            String url = String.format("%s/%s/messages?access_token=%s",
+                    graphApiUrl, pageId, accessToken);
+
+            SendMessageRequest request = new SendMessageRequest();
+            SendMessageRequest.Recipient recipient = new SendMessageRequest.Recipient();
+            recipient.setId(userId);
+            request.setRecipient(recipient);
+
+            SendMessageRequest.MessageContent messageContent = new SendMessageRequest.MessageContent();
+            messageContent.setText(messageText);
+            request.setMessage(messageContent);
+
+            return sendMessageRequest(url, request, userId);
+        } catch (Exception e) {
+            log.error("Error sending text message to user {}: ", userId, e);
+            return null;
+        }
+    }
+    public SendMessageResponse sendMediaMessage(String userId, String attachmentId, String mediaType, String caption) {
+        try {
+            String url = String.format("%s/%s/messages?access_token=%s",
+                    graphApiUrl, pageId, accessToken);
+
+            SendMessageRequest request = new SendMessageRequest();
+            SendMessageRequest.Recipient recipient = new SendMessageRequest.Recipient();
+            recipient.setId(userId);
+            request.setRecipient(recipient);
+
+            SendMessageRequest.Attachment attachment = new SendMessageRequest.Attachment();
+            attachment.setType(mediaType.toLowerCase());
+
+            SendMessageRequest.Attachment.Payload payload = new SendMessageRequest.Attachment.Payload();
+            payload.setAttachmentId(attachmentId);
+            payload.setIsReusable(true);
+            attachment.setPayload(payload);
+
+            request.setAttachment(attachment);
+
+            if (caption != null && !caption.trim().isEmpty()) {
+                SendMessageRequest.MessageContent messageContent = new SendMessageRequest.MessageContent();
+                messageContent.setText(caption);
+                request.setMessage(messageContent);
+            }
+
+            return sendMessageRequest(url, request, userId);
+        } catch (Exception e) {
+            log.error("Error sending media message to user {}: ", userId, e);
+            return null;
+        }
+    }
+
+    public SendMessageResponse sendTemplateMessage(String userId, MessageTemplate template) {
+        switch (template.getType().toUpperCase()) {
+            case "TEXT":
+                return sendTextMessage(userId, template.getContent());
+            case "IMAGE":
+            case "VIDEO":
+            case "FILE":
+                return sendMediaMessage(userId, template.getContent(), template.getType(), template.getCaption());
+            default:
+                log.error("Unsupported message type: {}", template.getType());
+                return null;
+        }
+    }
+
+    private SendMessageResponse sendMessageRequest(String url, SendMessageRequest request, String userId) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<SendMessageRequest> entity = new HttpEntity<>(request, headers);
+
+            SendMessageResponse response = restTemplate.postForObject(url, entity, SendMessageResponse.class);
+
+            log.info("Message sent to user {}: {}", userId, response != null ? response.getMessageId() : "unknown");
+            return response;
+        } catch (Exception e) {
+            log.error("Error sending HTTP request to user {}: ", userId, e);
+            return null;
+        }
+    }
+
+    public Map<String, Boolean> sendTemplateToAllActiveUsers(MessageTemplate template) {
+        Set<String> activeUsers = getActiveUsers();
+        return sendTemplateToUsers(template, activeUsers);
+    }
+
+    public Map<String, Boolean> sendTemplateToUsers(MessageTemplate template, Set<String> userIds) {
+
+        JsoonFormat josonFormat = new JsoonFormat();
+        josonFormat.printJson(template);
+        System.out.println(userIds);
+        Map<String, Boolean> results = new HashMap<>();
+
+        for (String userId : userIds) {
+            try {
+                SendMessageResponse response = sendTemplateMessage(userId, template);
+                results.put(userId, response != null && response.getMessageId() != null);
+
+                // Add delay to avoid rate limiting
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                log.error("Error sending template message to user {}: ", userId, e);
+                results.put(userId, false);
+            }
+        }
+
+        long successCount = results.values().stream().mapToLong(success -> success ? 1 : 0).sum();
+        log.info("Template messages sent successfully to {}/{} users", successCount, userIds.size());
+
+        return results;
+    }
+    public Map<String, Boolean> sendMessageToAllActiveUsers(String messageText) {
+        MessageTemplate template = new MessageTemplate();
+        template.setType("TEXT");
+        template.setContent(messageText);
+
+        return sendTemplateToAllActiveUsers(template);
+    }
+
 }

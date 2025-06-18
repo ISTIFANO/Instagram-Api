@@ -21,6 +21,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -181,4 +184,33 @@ private final InstagramService instagramService;
 
         throw new IllegalArgumentException("Unsupported media type: " + contentType);
     }
+
+    @PostMapping("/send-to-all")
+    public ResponseEntity<Map<String, Object>> sendMessageToAll(@RequestBody Map<String, String> request) {
+        String message = request.get("message");
+
+        if (message == null || message.trim().isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Message text is required"));
+        }
+
+        Map<String, Boolean> results = instagramService.sendMessageToAllActiveUsers(message);
+
+        long successCount = results.values().stream().mapToLong(success -> success ? 1 : 0).sum();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("totalUsers", results.size());
+        response.put("successCount", successCount);
+        response.put("failureCount", results.size() - successCount);
+        response.put("details", results);
+
+        return ResponseEntity.ok(response);
+    }
+    @GetMapping("/active")
+    public ResponseEntity<Set<String>> getActiveUsers() {
+        Set<String> activeUsers = instagramService.getActiveUsers();
+        return ResponseEntity.ok(activeUsers);
+    }
+
+
 }
