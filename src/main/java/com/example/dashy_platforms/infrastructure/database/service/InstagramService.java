@@ -20,6 +20,8 @@ import com.example.dashy_platforms.infrastructure.database.repositeries.MessageR
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,6 +68,8 @@ public class InstagramService implements IInstagramService {
 
     @Autowired
     private RestTemplate restTemplate;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Override
     public InstagramMessageResponse sendTextMessage(InstagramMessageRequest messageRequest) {
@@ -673,125 +677,337 @@ public class InstagramService implements IInstagramService {
         return pageId.equals(fromId);
     }
     public SendMessageResponse sendTextMessage(String userId, String messageText) {
-        try {
-            String url = String.format("%s/%s/messages?access_token=%s",
-                    graphApiUrl, pageId, accessToken);
-
-            SendMessageRequest request = new SendMessageRequest();
-            SendMessageRequest.Recipient recipient = new SendMessageRequest.Recipient();
-            recipient.setId(userId);
-            request.setRecipient(recipient);
-
-            SendMessageRequest.MessageContent messageContent = new SendMessageRequest.MessageContent();
-            messageContent.setText(messageText);
-            request.setMessage(messageContent);
-
-            return sendMessageRequest(url, request, userId);
-        } catch (Exception e) {
-            log.error("Error sending text message to user {}: ", userId, e);
-            return null;
-        }
+        SendMessageRequest request = new SendMessageRequest();
+        request.setRecipient(new SendMessageRequest.Recipient(userId));
+        request.setMessage(new SendMessageRequest.MessageContent(messageText));
+        return sendMessageRequest(request, userId);
     }
+
     public SendMessageResponse sendMediaMessage(String userId, String attachmentId, String mediaType, String caption) {
+        SendMessageRequest request = new SendMessageRequest();
+        request.setRecipient(new SendMessageRequest.Recipient(userId));
+
+        SendMessageRequest.Attachment attachment = new SendMessageRequest.Attachment();
+        attachment.setType(mediaType.toLowerCase());
+        attachment.setPayload(new SendMessageRequest.Attachment.Payload(attachmentId, null, true));
+        request.setAttachment(attachment);
+
+        if (caption != null && !caption.trim().isEmpty()) {
+            request.setMessage(new SendMessageRequest.MessageContent(caption));
+        }
+
+        return sendMessageRequest(request, userId);
+    }
+
+    private SendMessageResponse sendMessageRequest(SendMessageRequest request, String userId) {
         try {
             String url = String.format("%s/%s/messages?access_token=%s",
                     graphApiUrl, pageId, accessToken);
 
-            SendMessageRequest request = new SendMessageRequest();
-            SendMessageRequest.Recipient recipient = new SendMessageRequest.Recipient();
-            recipient.setId(userId);
-            request.setRecipient(recipient);
-
-            SendMessageRequest.Attachment attachment = new SendMessageRequest.Attachment();
-            attachment.setType(mediaType.toLowerCase());
-
-            SendMessageRequest.Attachment.Payload payload = new SendMessageRequest.Attachment.Payload();
-            payload.setAttachmentId(attachmentId);
-            payload.setIsReusable(true);
-            attachment.setPayload(payload);
-
-            request.setAttachment(attachment);
-
-            if (caption != null && !caption.trim().isEmpty()) {
-                SendMessageRequest.MessageContent messageContent = new SendMessageRequest.MessageContent();
-                messageContent.setText(caption);
-                request.setMessage(messageContent);
-            }
-
-            return sendMessageRequest(url, request, userId);
-        } catch (Exception e) {
-            log.error("Error sending media message to user {}: ", userId, e);
-            return null;
-        }
-    }
-
-    public SendMessageResponse sendTemplateMessage(String userId, MessageTemplate template) {
-        switch (template.getType().toUpperCase()) {
-            case "TEXT":
-                return sendTextMessage(userId, template.getContent());
-            case "IMAGE":
-            case "VIDEO":
-            case "FILE":
-                return sendMediaMessage(userId, template.getContent(), template.getType(), template.getCaption());
-            default:
-                log.error("Unsupported message type: {}", template.getType());
-                return null;
-        }
-    }
-
-    private SendMessageResponse sendMessageRequest(String url, SendMessageRequest request, String userId) {
-        try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            HttpEntity<SendMessageRequest> entity = new HttpEntity<>(request, headers);
+            ResponseEntity<SendMessageResponse> response = restTemplate.postForEntity(
+                    url,
+                    new HttpEntity<>(request, headers),
+                    SendMessageResponse.class
+            );
 
-            SendMessageResponse response = restTemplate.postForObject(url, entity, SendMessageResponse.class);
-
-            log.info("Message sent to user {}: {}", userId, response != null ? response.getMessageId() : "unknown");
-            return response;
-        } catch (Exception e) {
-            log.error("Error sending HTTP request to user {}: ", userId, e);
-            return null;
-        }
-    }
-
-    public Map<String, Boolean> sendTemplateToAllActiveUsers(MessageTemplate template) {
-        Set<String> activeUsers = getActiveUsers();
-        return sendTemplateToUsers(template, activeUsers);
-    }
-
-    public Map<String, Boolean> sendTemplateToUsers(MessageTemplate template, Set<String> userIds) {
-
-        JsoonFormat josonFormat = new JsoonFormat();
-        josonFormat.printJson(template);
-        System.out.println(userIds);
-        Map<String, Boolean> results = new HashMap<>();
-
-        for (String userId : userIds) {
-            try {
-                SendMessageResponse response = sendTemplateMessage(userId, template);
-                results.put(userId, response != null && response.getMessageId() != null);
-
-                // Add delay to avoid rate limiting
-                Thread.sleep(1000);
-            } catch (Exception e) {
-                log.error("Error sending template message to user {}: ", userId, e);
-                results.put(userId, false);
+            if (response.getStatusCode() == HttpStatus.OK) {
+                return response.getBody();
             }
+        } catch (Exception e) {
+            log.error("Error sending message to user {}", userId, e);
         }
-
-        long successCount = results.values().stream().mapToLong(success -> success ? 1 : 0).sum();
-        log.info("Template messages sent successfully to {}/{} users", successCount, userIds.size());
-
-        return results;
+        return null;
     }
     public Map<String, Boolean> sendMessageToAllActiveUsers(String messageText) {
         MessageTemplate template = new MessageTemplate();
         template.setType("TEXT");
         template.setContent(messageText);
-
         return sendTemplateToAllActiveUsers(template);
     }
 
+    public Map<String, Boolean> sendMediaToAllActiveUsers(String attachmentId, String mediaType, String caption) {
+        Set<String> activeUsers = getActiveUsers();
+        Map<String, Boolean> results = new HashMap<>();
+
+        for (String userId : activeUsers) {
+            try {
+                ObjectNode requestBody = objectMapper.createObjectNode();
+                requestBody.putObject("recipient").put("id", userId);
+                ObjectNode message = requestBody.putObject("message");
+                ObjectNode attachment = message.putObject("attachment");
+                attachment.put("type", mediaType.toLowerCase());
+                ObjectNode payload = attachment.putObject("payload");
+                payload.put("attachment_id", attachmentId);
+                if (caption != null && !caption.isEmpty()) {
+                    message.put("text", caption);
+                }
+                String url = String.format("%s/%s/messages", graphApiUrl, pageId);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.setBearerAuth(accessToken);
+
+                ResponseEntity<JsonNode> response = restTemplate.exchange(
+                        url,
+                        HttpMethod.POST,
+                        new HttpEntity<>(requestBody.toString(), headers),
+                        JsonNode.class
+                );
+
+                boolean success = response.getStatusCode() == HttpStatus.OK &&
+                        response.getBody() != null &&
+                        response.getBody().has("message_id");
+
+                results.put(userId, success);
+
+                saveMediaMessageToDatabase(userId, attachmentId, mediaType, success);
+
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                log.error("Failed to send media to user {}", userId, e);
+                results.put(userId, false);
+            }
+        }
+
+        return results;
+    }
+    private void saveMediaMessageToDatabase(String userId, String attachmentId, String mediaType, boolean success) {
+        MessageEntity message = new MessageEntity();
+        message.setMessageType(mediaType.toUpperCase() + "_MESSAGE");
+        message.setRecipientId(userId);
+        message.setMessageContent(attachmentId);
+        message.setStatus(success ? "SENT" : "FAILED");
+        message.setSentAt(LocalDateTime.now());
+        messageRepository.save(message);
+    }
+    public Map<String, Boolean> sendTemplateToAllActiveUsers(MessageTemplate template) {
+        Set<String> activeUsers = getActiveUsers();
+        Map<String, Boolean> results = new HashMap<>();
+
+        for (String userId : activeUsers) {
+            try {
+                ObjectNode requestBody = objectMapper.createObjectNode();
+                requestBody.putObject("recipient").put("id", userId);
+
+                ObjectNode messageNode = requestBody.putObject("message");
+                ObjectNode attachmentNode = messageNode.putObject("attachment");
+                attachmentNode.put("type", "template");
+
+                ObjectNode payloadNode = attachmentNode.putObject("payload");
+                payloadNode.put("template_type", "generic");
+
+                ArrayNode elementsNode = payloadNode.putArray("elements");
+
+                if ("GENERIC".equalsIgnoreCase(template.getType())) {
+                    MessageTemplate.GenericContent genericContent =
+                            objectMapper.convertValue(template.getContent(),
+                                    MessageTemplate.GenericContent.class);
+
+                    for (MessageTemplate.GenericContent.Element element : genericContent.getElements()) {
+                        ObjectNode elementNode = elementsNode.addObject();
+                        elementNode.put("title", element.getTitle());
+                        elementNode.put("image_url", element.getImage_url());
+                        elementNode.put("subtitle", element.getSubtitle());
+
+                        if (element.getDefault_action() != null) {
+                            ObjectNode actionNode = elementNode.putObject("default_action");
+                            actionNode.put("type", element.getDefault_action().getType());
+                            actionNode.put("url", element.getDefault_action().getUrl());
+                        }
+
+                        if (element.getButtons() != null) {
+                            ArrayNode buttonsNode = elementNode.putArray("buttons");
+                            for (MessageTemplate.Button button : element.getButtons()) {
+                                ObjectNode buttonNode = buttonsNode.addObject();
+                                buttonNode.put("type", button.getType());
+                                if (button.getUrl() != null) {
+                                    buttonNode.put("url", button.getUrl());
+                                }
+                                buttonNode.put("title", button.getTitle());
+                                if (button.getPayload() != null) {
+                                    buttonNode.put("payload", button.getPayload());
+                                }
+                            }
+                        }
+                    }
+                }
+                String url = String.format("%s/%s/messages?access_token=%s",
+                        graphApiUrl, pageId, accessToken);
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+
+                HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
+                ResponseEntity<SendMessageResponse> response = restTemplate.postForEntity(
+                        url, entity, SendMessageResponse.class);
+
+                boolean success = response.getStatusCode() == HttpStatus.OK &&
+                        response.getBody() != null &&
+                        response.getBody().getMessageId() != null;
+
+                results.put(userId, success);
+
+                saveGenericTemplateToDatabase(userId, template, success,
+                        success ? response.getBody().getMessageId() : null);
+
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                log.error("Error sending generic template to user {}: {}", userId, e.getMessage());
+                results.put(userId, false);
+                saveFailedMessageToDatabase(userId, template, e.getMessage());
+            }
+        }
+
+        return results;
+    }
+
+    private void saveGenericTemplateToDatabase(String recipientId, MessageTemplate template,
+                                               boolean success, String messageId) {
+        try {
+            MessageEntity dbMessage = new MessageEntity();
+            dbMessage.setMessageType("GENERIC_TEMPLATE");
+            dbMessage.setRecipientId(recipientId);
+            dbMessage.setStatus(success ? "SENT" : "FAILED");
+            dbMessage.setSentAt(LocalDateTime.now());
+            dbMessage.setCreatedAt(LocalDateTime.now());
+
+            MessageTemplate.GenericContent content =
+                    objectMapper.convertValue(template.getContent(), MessageTemplate.GenericContent.class);
+
+            String contentSummary = content.getElements().stream()
+                    .map(e -> e.getTitle() + ": " + e.getSubtitle())
+                    .collect(Collectors.joining(" | "));
+
+            dbMessage.setMessageContent(contentSummary);
+            messageRepository.save(dbMessage);
+        } catch (Exception e) {
+            log.error("Error saving generic template to database: ", e);
+        }
+    }
+
+    private void saveFailedMessageToDatabase(String recipientId, MessageTemplate template, String error) {
+        MessageEntity dbMessage = new MessageEntity();
+        dbMessage.setMessageType("GENERIC_TEMPLATE");
+        dbMessage.setRecipientId(recipientId);
+        dbMessage.setStatus("FAILED");
+        dbMessage.setMessageContent("Failed to send: " + error);
+        dbMessage.setCreatedAt(LocalDateTime.now());
+        messageRepository.save(dbMessage);
+    }
+    private SendMessageResponse sendTemplateMessage(String userId, MessageTemplate template) {
+        try {
+            String url = String.format("%s/%s/messages?access_token=%s",
+                    graphApiUrl, pageId, accessToken);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.putObject("recipient").put("id", userId);
+
+            ObjectNode messageNode = requestBody.putObject("message");
+
+            switch (template.getType().toUpperCase()) {
+                case "TEXT":
+                    messageNode.put("text", template.getContent().toString());
+                    break;
+                case "IMAGE":
+                case "VIDEO":
+                case "FILE":
+                    ObjectNode attachmentNode = messageNode.putObject("attachment");
+                    attachmentNode.put("type", template.getType().toLowerCase());
+                    ObjectNode payloadNode = attachmentNode.putObject("payload");
+                    payloadNode.put("attachment_id", template.getContent().toString());
+                    payloadNode.put("is_reusable", true);
+                    if (template.getCaption() != null) {
+                        messageNode.put("text", template.getCaption());
+                    }
+                    break;
+                case "GENERIC":
+                    ObjectNode genericAttachment = messageNode.putObject("attachment");
+                    genericAttachment.put("type", "template");
+                    ObjectNode genericPayload = genericAttachment.putObject("payload");
+                    genericPayload.put("template_type", "generic");
+                    genericPayload.set("elements", objectMapper.valueToTree(template.getContent()));
+                    break;
+                case "BUTTON":
+                    ObjectNode buttonAttachment = messageNode.putObject("attachment");
+                    buttonAttachment.put("type", "template");
+                    ObjectNode buttonPayload = buttonAttachment.putObject("payload");
+                    buttonPayload.put("template_type", "button");
+                    buttonPayload.set("buttons", objectMapper.valueToTree(template.getContent()));
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported template type: " + template.getType());
+            }
+
+            HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
+            ResponseEntity<SendMessageResponse> response = restTemplate.postForEntity(
+                    url, entity, SendMessageResponse.class);
+
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("Error sending template message: ", e);
+            return null;
+        }
+    }
+    public Map<String, Boolean> sendCustomMessageToAllActiveUsers(InstagramMessageR request) {
+        Set<String> activeUsers = getActiveUsers();
+        Map<String, Boolean> results = new HashMap<>();
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        for (String userId : activeUsers) {
+            try {
+                InstagramMessageR userRequest = new InstagramMessageR();
+                userRequest.setRecipient(new InstagramMessageR.Recipient(userId));
+
+                InstagramMessageR.Message message = new InstagramMessageR.Message();
+                message.setText(request.getMessage().getText());
+
+                if (request.getMessage().getAttachment() != null) {
+                    InstagramMessageR.Message.Attachment attachment =
+                            mapper.convertValue(request.getMessage().getAttachment(),
+                                    InstagramMessageR.Message.Attachment.class);
+                    message.setAttachment(attachment);
+                }
+
+                if (request.getMessage().getQuick_replies() != null) {
+                    List<InstagramMessageR.Message.QuickReply> quickReplies =
+                            request.getMessage().getQuick_replies().stream()
+                                    .map(qr -> mapper.convertValue(qr, InstagramMessageR.Message.QuickReply.class))
+                                    .collect(Collectors.toList());
+                    message.setQuick_replies(quickReplies);
+                }
+
+                userRequest.setMessage(message);
+
+                String url = String.format("%s/%s/messages?access_token=%s",
+                        graphApiUrl, pageId, accessToken);
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+
+                ResponseEntity<SendMessageResponse> response = restTemplate.postForEntity(
+                        url,
+                        new HttpEntity<>(userRequest, headers),
+                        SendMessageResponse.class);
+
+                boolean success = response.getStatusCode() == HttpStatus.OK &&
+                        response.getBody() != null &&
+                        response.getBody().getMessageId() != null;
+
+                results.put(userId, success);
+
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                log.error("Error sending custom message to user {}: {}", userId, e.getMessage());
+                results.put(userId, false);
+            }
+        }
+
+        return results;
+    }
 }
