@@ -13,7 +13,7 @@ import java.util.Set;
 
 public interface IInstagramService {
     InstagramMessageResponse sendTextMessage(InstagramMessageRequest message);
-    InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData, String attachmentId);
+    InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData);
     public Set<UserListInfoResponse> listMessagedUsers();
         InstagramMessageResponse sendButtonTemplate(String recipientId, InstagramButtonTemplateRequest templateData);
     InstagramMessageResponse sendQuick_repliesTemplate(Quick_replies_Request templateData);

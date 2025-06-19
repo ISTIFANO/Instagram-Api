@@ -14,8 +14,8 @@ public class ElementModel {
         @JsonProperty("title")
         private String title;
 
-        @JsonProperty("attachment_id")
-        private String attachment_id;
+        @JsonProperty("image_url")
+        private String image_url;
 
         @JsonProperty("subtitle")
         private String subtitle;
@@ -26,12 +26,10 @@ public class ElementModel {
         @JsonProperty("buttons")
         private List<TemplateButton> buttons;
 
-        public void setAttachment_id(String attachment_id) {
-                this.attachment_id = attachment_id;
+        public String getImage_url() {
+                return image_url;
         }
-
-        public String getAttachment_id() {
-                return attachment_id;
+        public void setImage_url(String image_url) {
+                this.image_url = image_url;
         }
-
 }

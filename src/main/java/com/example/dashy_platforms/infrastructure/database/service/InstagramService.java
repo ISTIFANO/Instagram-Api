@@ -117,21 +117,12 @@ public class InstagramService implements IInstagramService {
     }
 
     @Override
-    public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData , String attachmentId) {
+    public InstagramMessageResponse sendGenericTemplate(String recipientId, InstagramTemplateRequest templateData) {
         try {
             MessageEntity dbMessage = messageRepository.save(new MessageEntity());
 
-            if (templateData != null &&
-                    templateData.getMessage() != null &&
-                    templateData.getMessage().getAttachment() != null &&
-                    templateData.getMessage().getAttachment().getPayload() != null &&
-                    templateData.getMessage().getAttachment().getPayload().getElements() != null) {
-
-                for (ElementModel element : templateData.getMessage().getAttachment().getPayload().getElements()) {
-                    element.setAttachment_id(attachmentId);
-                }
-            }
             String url = String.format("%s/v22.0/me/messages", graphApiUrl);
+
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("recipient", Map.of("id", recipientId));
             requestBody.put("message", templateData.getMessage());
@@ -172,7 +163,6 @@ public class InstagramService implements IInstagramService {
             return errorResponse;
         }
     }
-
     @Override
     public InstagramMessageResponse sendButtonTemplate(String recipientId, InstagramButtonTemplateRequest templateRequest) {
         try {

@@ -62,23 +62,15 @@ private final InstagramService instagramService;
     ) {
         return ResponseEntity.ok("Upload Successful");
     }
-    @PostMapping(value = "/sendtemplate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<InstagramTemplateRequest> sendTemplateMessage(
-            @RequestPart("recipient_id") String recipient_id,
-            @RequestPart("file") MultipartFile file,
-            @RequestPart("message") String message) throws JsonProcessingException {
-
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        InstagramTemplateRequest instagram = objectMapper.readValue(message, InstagramTemplateRequest.class);
-
-        String attachmentId = instagramService.uploadMediaAndGetAttachmentId(file);
-
-        InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, instagram, attachmentId);
+    @PostMapping("/sendtemplate")
+    public ResponseEntity<InstagramMessageResponse> sendTemplateMessage(
+            @RequestBody InstagramTemplateRequest message) {
+String recipient_id = message.getRecipient().getId();
+        InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, message);
         if ("SENT".equals(response.getStatus())) {
-            return ResponseEntity.ok(instagram);
+            return ResponseEntity.ok(response);
         } else {
-            return ResponseEntity.badRequest().body(instagram);
+            return ResponseEntity.badRequest().body(response);
         }
     }
     @PostMapping("/sendbuttontemplate")
