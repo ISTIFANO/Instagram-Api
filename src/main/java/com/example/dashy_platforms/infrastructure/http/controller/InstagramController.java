@@ -1,6 +1,9 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.GenericTemplateRequest;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.InstagramMessageR;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessageTemplate;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachementResponse;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentDto;
 import com.example.dashy_platforms.domaine.model.MediaAttachment.AttachmentRequest;
@@ -21,6 +24,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -181,4 +187,96 @@ private final InstagramService instagramService;
 
         throw new IllegalArgumentException("Unsupported media type: " + contentType);
     }
+
+    @PostMapping("/send-text-to-all")
+    public ResponseEntity<Map<String, Object>> sendTextToAll(@RequestBody Map<String, String> request) {
+        String message = request.get("message");
+        if (message == null || message.trim().isEmpty()) {
+            return badRequest("Message text is required");
+        }
+        return okResponse(instagramService.sendMessageToAllActiveUsers(message));
+    }
+
+    @PostMapping("/upload-and-send-media")
+    public ResponseEntity<Map<String, Object>> uploadAndSendMedia(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "caption", required = false) String caption) {
+        try {
+            String attachmentId = instagramService.uploadMediaAndGetAttachmentId(file);
+            String mediaType = getMediaType(file.getContentType());
+
+            System.out.println(attachmentId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("attachmentId", attachmentId);
+            response.put("mediaType", mediaType);
+            response.putAll(buildStats(instagramService.sendMediaToAllActiveUsers(attachmentId, mediaType, caption)));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return serverError("Failed to upload and send media: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/send-generic-template")
+    public ResponseEntity<Map<String, Object>> sendGenericTemplate(
+            @RequestBody GenericTemplateRequest request) {
+
+        MessageTemplate template = new MessageTemplate();
+        template.setType("GENERIC");
+
+        MessageTemplate.GenericContent content = new MessageTemplate.GenericContent();
+        content.setElements(request.getElements());
+
+        template.setContent(content);
+        template.setCaption(request.getCaption());
+
+        Map<String, Boolean> results = instagramService.sendTemplateToAllActiveUsers(template);
+
+        long successCount = results.values().stream().filter(Boolean::booleanValue).count();
+
+        return ResponseEntity.ok(Map.of(
+                "totalUsers", results.size(),
+                "successCount", successCount,
+                "failureCount", results.size() - successCount,
+                "details", results
+        ));
+    }
+
+    @PostMapping("/send-custom-to-all")
+    public ResponseEntity<Map<String, Object>> sendCustomToAll(@RequestBody InstagramMessageR request) {
+        if (request.getMessage() == null) {
+            return badRequest("Message content is required");
+        }
+        return okResponse(instagramService.sendCustomMessageToAllActiveUsers(request));
+    }
+
+    @GetMapping("/active-users")
+    public ResponseEntity<Set<String>> getActiveUsers() {
+        return ResponseEntity.ok(instagramService.getActiveUsers());
+    }
+
+    private ResponseEntity<Map<String, Object>> okResponse(Map<String, Boolean> results) {
+        return ResponseEntity.ok(buildStats(results));
+    }
+
+    private ResponseEntity<Map<String, Object>> badRequest(String error) {
+        return ResponseEntity.badRequest().body(Map.of("error", error));
+    }
+
+    private ResponseEntity<Map<String, Object>> serverError(String error) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", error));
+    }
+
+    private Map<String, Object> buildStats(Map<String, Boolean> results) {
+        long successCount = results.values().stream().filter(Boolean::booleanValue).count();
+        return Map.of(
+                "totalUsers", results.size(),
+                "successCount", successCount,
+                "failureCount", results.size() - successCount,
+                "details", results
+        );
+    }
 }
+
+
+
