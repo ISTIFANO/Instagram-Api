@@ -18,6 +18,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.JSONPObject;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/instagram")
 @CrossOrigin(origins = "*")
+@Slf4j
 public class InstagramController {
 
 private final InstagramService instagramService;
@@ -192,9 +194,25 @@ private final InstagramService instagramService;
     public ResponseEntity<Map<String, Object>> sendTextToAll(@RequestBody Map<String, String> request) {
         String message = request.get("message");
         if (message == null || message.trim().isEmpty()) {
-            return badRequest("Message text is required");
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Message text is required"));
         }
-        return okResponse(instagramService.sendMessageToAllActiveUsers(message));
+
+        try {
+            Map<String, Boolean> results = instagramService.sendTextToAllActiveUsers(message);
+            long successCount = results.values().stream().filter(Boolean::booleanValue).count();
+            Map<String, Object> response = new HashMap<>();
+            response.put("totalUsers", results.size());
+            response.put("successCount", successCount);
+            response.put("failureCount", results.size() - successCount);
+            response.put("details", results);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to send text to all users", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to send messages: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/upload-and-send-media")

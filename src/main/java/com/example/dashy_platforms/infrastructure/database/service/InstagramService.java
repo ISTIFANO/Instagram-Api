@@ -721,13 +721,69 @@ public class InstagramService implements IInstagramService {
         }
         return null;
     }
-    public Map<String, Boolean> sendMessageToAllActiveUsers(String messageText) {
-        MessageTemplate template = new MessageTemplate();
-        template.setType("TEXT");
-        template.setContent(messageText);
-        return sendTemplateToAllActiveUsers(template);
+    public Map<String, Boolean> sendTextToAllActiveUsers(String messageText) {
+        Set<String> activeUsers = getActiveUsers();
+        Map<String, Boolean> results = new HashMap<>();
+
+        for (String userId : activeUsers) {
+            try {
+                ObjectNode requestBody = objectMapper.createObjectNode();
+                requestBody.putObject("recipient").put("id", userId);
+                requestBody.putObject("message").put("text", messageText);
+
+
+                String url = String.format("%s/%s/messages?access_token=%s",
+                        graphApiUrl, pageId, accessToken);
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+
+                ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                        url,
+                        new HttpEntity<>(requestBody.toString(), headers),
+                        JsonNode.class);
+
+                boolean success = response.getStatusCode() == HttpStatus.OK &&
+                        response.getBody() != null &&
+                        response.getBody().has("message_id");
+
+                results.put(userId, success);
+
+                saveTextMessageToDatabase(userId, messageText, success,
+                        success ? response.getBody().get("message_id").asText() : null);
+
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                log.error("Error sending text to user {}: {}", userId, e.getMessage());
+                results.put(userId, false);
+                saveFailedTextMessageToDatabase(userId, messageText, e.getMessage());
+            }
+        }
+
+        return results;
     }
 
+    private void saveTextMessageToDatabase(String recipientId, String messageText,
+                                           boolean success, String messageId) {
+        MessageEntity dbMessage = new MessageEntity();
+        dbMessage.setMessageType("TEXT");
+        dbMessage.setRecipientId(recipientId);
+        dbMessage.setMessageContent(messageText);
+        dbMessage.setStatus(success ? "SENT" : "FAILED");
+        dbMessage.setSentAt(LocalDateTime.now());
+        dbMessage.setCreatedAt(LocalDateTime.now());
+        messageRepository.save(dbMessage);
+    }
+
+    private void saveFailedTextMessageToDatabase(String recipientId, String messageText, String error) {
+        MessageEntity dbMessage = new MessageEntity();
+        dbMessage.setMessageType("TEXT");
+        dbMessage.setRecipientId(recipientId);
+        dbMessage.setMessageContent(messageText);
+        dbMessage.setStatus("FAILED");
+        dbMessage.setCreatedAt(LocalDateTime.now());
+        messageRepository.save(dbMessage);
+    }
     public Map<String, Boolean> sendMediaToAllActiveUsers(String attachmentId, String mediaType, String caption) {
         Set<String> activeUsers = getActiveUsers();
         Map<String, Boolean> results = new HashMap<>();
@@ -895,63 +951,6 @@ public class InstagramService implements IInstagramService {
         dbMessage.setMessageContent("Failed to send: " + error);
         dbMessage.setCreatedAt(LocalDateTime.now());
         messageRepository.save(dbMessage);
-    }
-    private SendMessageResponse sendTemplateMessage(String userId, MessageTemplate template) {
-        try {
-            String url = String.format("%s/%s/messages?access_token=%s",
-                    graphApiUrl, pageId, accessToken);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.putObject("recipient").put("id", userId);
-
-            ObjectNode messageNode = requestBody.putObject("message");
-
-            switch (template.getType().toUpperCase()) {
-                case "TEXT":
-                    messageNode.put("text", template.getContent().toString());
-                    break;
-                case "IMAGE":
-                case "VIDEO":
-                case "FILE":
-                    ObjectNode attachmentNode = messageNode.putObject("attachment");
-                    attachmentNode.put("type", template.getType().toLowerCase());
-                    ObjectNode payloadNode = attachmentNode.putObject("payload");
-                    payloadNode.put("attachment_id", template.getContent().toString());
-                    payloadNode.put("is_reusable", true);
-                    if (template.getCaption() != null) {
-                        messageNode.put("text", template.getCaption());
-                    }
-                    break;
-                case "GENERIC":
-                    ObjectNode genericAttachment = messageNode.putObject("attachment");
-                    genericAttachment.put("type", "template");
-                    ObjectNode genericPayload = genericAttachment.putObject("payload");
-                    genericPayload.put("template_type", "generic");
-                    genericPayload.set("elements", objectMapper.valueToTree(template.getContent()));
-                    break;
-                case "BUTTON":
-                    ObjectNode buttonAttachment = messageNode.putObject("attachment");
-                    buttonAttachment.put("type", "template");
-                    ObjectNode buttonPayload = buttonAttachment.putObject("payload");
-                    buttonPayload.put("template_type", "button");
-                    buttonPayload.set("buttons", objectMapper.valueToTree(template.getContent()));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported template type: " + template.getType());
-            }
-
-            HttpEntity<String> entity = new HttpEntity<>(requestBody.toString(), headers);
-            ResponseEntity<SendMessageResponse> response = restTemplate.postForEntity(
-                    url, entity, SendMessageResponse.class);
-
-            return response.getBody();
-        } catch (Exception e) {
-            log.error("Error sending template message: ", e);
-            return null;
-        }
     }
     public Map<String, Boolean> sendCustomMessageToAllActiveUsers(InstagramMessageR request) {
         Set<String> activeUsers = getActiveUsers();
