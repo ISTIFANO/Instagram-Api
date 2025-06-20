@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
-@NoArgsConstructor
 public class ScheduleMessageRequest {
     private String recipientId;
     private String messageContent;
@@ -23,4 +22,7 @@ public class ScheduleMessageRequest {
     private Integer maxExecutions;
     private LocalDateTime startDate;
 
+    public ScheduleMessageRequest(){
+
+    }
 }

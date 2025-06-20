@@ -58,7 +58,7 @@ public class ScheduledMessageEntity {
     private LocalDateTime createdAt;
 
     @Column(name = "max_executions")
-    private Integer maxExecutions; // pour limiter le nombre d'envois
+    private Integer maxExecutions;
 
     @Column(name = "execution_count")
     private Integer executionCount = 0;
