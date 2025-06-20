@@ -1,0 +1,105 @@
+package com.example.dashy_platforms.infrastructure.database.service;
+
+
+import com.example.dashy_platforms.domaine.enums.IntervalUnit;
+import com.example.dashy_platforms.domaine.model.ScheduleMessage.ScheduleMessageRequest;
+import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
+import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
+import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
+import com.example.dashy_platforms.infrastructure.database.repositeries.ScheduledMessageRepository;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+@Transactional
+public class MessageSchedulerService implements IMessageSchedulerService {
+
+
+    @Autowired
+    private ScheduledMessageRepository scheduledMessageRepository;
+
+    @Autowired
+    InstagramService instagramService;
+
+    public ScheduledMessageEntity scheduleMessage(ScheduleMessageRequest request) {
+        ScheduledMessageEntity scheduledMessage = new ScheduledMessageEntity();
+        scheduledMessage.setRecipientId(request.getRecipientId());
+        scheduledMessage.setMessageContent(request.getMessageContent());
+        scheduledMessage.setScheduleType(request.getScheduleType());
+        scheduledMessage.setIntervalValue(request.getIntervalValue());
+        scheduledMessage.setIntervalUnit(request.getIntervalUnit());
+        scheduledMessage.setDayOfWeek(request.getDayOfWeek());
+        scheduledMessage.setDayOfMonth(request.getDayOfMonth());
+        scheduledMessage.setHourOfDay(request.getHourOfDay());
+        scheduledMessage.setMinuteOfHour(request.getMinuteOfHour());
+        scheduledMessage.setMaxExecutions(request.getMaxExecutions());
+
+        LocalDateTime nextExecution = calculateNextExecution(request);
+        scheduledMessage.setNextExecution(nextExecution);
+
+        return scheduledMessageRepository.save(scheduledMessage);
+}
+    private LocalDateTime calculateNextExecution(ScheduleMessageRequest request) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startDate = request.getStartDate() != null ? request.getStartDate() : now;
+
+        switch (request.getScheduleType()) {
+            case DAILY:
+                return startDate.plusDays(1)
+                        .withHour(request.getHourOfDay() != null ? request.getHourOfDay() : 9)
+                        .withMinute(request.getMinuteOfHour() != null ? request.getMinuteOfHour() : 0)
+                        .withSecond(0);
+
+            case WEEKLY:
+                LocalDateTime nextWeek = startDate.plusWeeks(1);
+                if (request.getDayOfWeek() != null) {
+                    nextWeek = nextWeek.with(DayOfWeek.of(request.getDayOfWeek()));
+                }
+                return nextWeek
+                        .withHour(request.getHourOfDay() != null ? request.getHourOfDay() : 9)
+                        .withMinute(request.getMinuteOfHour() != null ? request.getMinuteOfHour() : 0)
+                        .withSecond(0);
+
+            case MONTHLY:
+                LocalDateTime nextMonth = startDate.plusMonths(1);
+                if (request.getDayOfMonth() != null) {
+                    nextMonth = nextMonth.withDayOfMonth(request.getDayOfMonth());
+                }
+                return nextMonth
+                        .withHour(request.getHourOfDay() != null ? request.getHourOfDay() : 9)
+                        .withMinute(request.getMinuteOfHour() != null ? request.getMinuteOfHour() : 0)
+                        .withSecond(0);
+
+            case INTERVAL:
+                if (request.getIntervalUnit() == IntervalUnit.MINUTES) {
+                    return startDate.plusMinutes(request.getIntervalValue());
+                } else if (request.getIntervalUnit() == IntervalUnit.HOURS) {
+                    return startDate.plusHours(request.getIntervalValue());
+                } else {
+                    return startDate.plusDays(request.getIntervalValue());
+                }
+
+            case ONCE:
+                return startDate;
+
+            default:
+                return startDate.plusHours(1);
+        }
+    }
+    public void stopScheduledMessage(Long scheduledMessageId) {
+        ScheduledMessageEntity message = scheduledMessageRepository.findById(scheduledMessageId)
+                .orElseThrow(() -> new RuntimeException("Message planifié non trouvé"));
+        message.setIsActive(false);
+        scheduledMessageRepository.save(message);
+    }
+
+    public List<ScheduledMessageEntity> getActiveScheduledMessages(String recipientId) {
+        return scheduledMessageRepository.findByRecipientIdAndIsActiveTrue(recipientId);
+    }
+
+}
