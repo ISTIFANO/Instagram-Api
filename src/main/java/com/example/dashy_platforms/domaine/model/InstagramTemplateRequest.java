@@ -15,8 +15,8 @@ public class InstagramTemplateRequest {
     private Message message;
 
     public InstagramTemplateRequest() {
-
     }
+
     public InstagramTemplateRequest(Recipient recipient, Message message) {
         this.recipient = recipient;
         this.message = message;

@@ -9,9 +9,7 @@ import lombok.Setter;
 public class Message{
 
     @JsonProperty("attachment")
+
     private Attachment attachment;
-
-
-
 
 }

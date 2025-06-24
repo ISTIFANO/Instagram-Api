@@ -1,15 +1,20 @@
 package com.example.dashy_platforms.domaine.model.BroadcastMessage;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageTemplate {
+
     private String type;
     private Object content;
     private String caption;
-
+    public MessageTemplate() {}
     @Data
     public static class GenericContent {
         private List<Element> elements;
