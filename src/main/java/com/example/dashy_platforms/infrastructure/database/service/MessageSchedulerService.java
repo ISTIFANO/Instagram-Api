@@ -7,13 +7,17 @@ import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.ScheduledMessageRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Transactional
@@ -26,24 +30,36 @@ public class MessageSchedulerService implements IMessageSchedulerService {
     @Autowired
     InstagramService instagramService;
 
-    public ScheduledMessageEntity scheduleMessage(ScheduleMessageRequest request) {
-        ScheduledMessageEntity scheduledMessage = new ScheduledMessageEntity();
-        scheduledMessage.setRecipientId(request.getRecipientId());
-        scheduledMessage.setMessageContent(request.getMessageContent());
-        scheduledMessage.setScheduleType(request.getScheduleType());
-        scheduledMessage.setIntervalValue(request.getIntervalValue());
-        scheduledMessage.setIntervalUnit(request.getIntervalUnit());
-        scheduledMessage.setDayOfWeek(request.getDayOfWeek());
-        scheduledMessage.setDayOfMonth(request.getDayOfMonth());
-        scheduledMessage.setHourOfDay(request.getHourOfDay());
-        scheduledMessage.setMinuteOfHour(request.getMinuteOfHour());
-        scheduledMessage.setMaxExecutions(request.getMaxExecutions());
 
-        LocalDateTime nextExecution = calculateNextExecution(request);
-        scheduledMessage.setNextExecution(nextExecution);
 
-        return scheduledMessageRepository.save(scheduledMessage);
-}
+    public List<ScheduledMessageEntity> scheduleMessageForAllActiveUsers(ScheduleMessageRequest request ,Set<String> activeUsers ) {
+        try {
+            List<ScheduledMessageEntity> scheduledMessages = new ArrayList<>();
+            ObjectMapper mapper = new ObjectMapper();
+
+            for (String userId : activeUsers) {
+                ScheduledMessageEntity scheduledMessage = new ScheduledMessageEntity();
+                scheduledMessage.setRecipientId(userId);
+                scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+                scheduledMessage.setMessagetype(request.getMessageType());
+                scheduledMessage.setScheduleType(request.getScheduleType());
+                scheduledMessage.setIntervalValue(request.getIntervalValue());
+                scheduledMessage.setIntervalUnit(request.getIntervalUnit());
+                scheduledMessage.setDayOfWeek(request.getDayOfWeek());
+                scheduledMessage.setDayOfMonth(request.getDayOfMonth());
+                scheduledMessage.setHourOfDay(request.getHourOfDay());
+                scheduledMessage.setMinuteOfHour(request.getMinuteOfHour());
+                scheduledMessage.setMaxExecutions(request.getMaxExecutions());
+                LocalDateTime nextExecution = calculateNextExecution(request);
+                scheduledMessage.setNextExecution(nextExecution);
+                scheduledMessages.add(scheduledMessageRepository.save(scheduledMessage));
+            }
+            return scheduledMessages;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid JSON in messageContent", e);
+        }
+    }
     private LocalDateTime calculateNextExecution(ScheduleMessageRequest request) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startDate = request.getStartDate() != null ? request.getStartDate() : now;
@@ -74,7 +90,6 @@ public class MessageSchedulerService implements IMessageSchedulerService {
                         .withHour(request.getHourOfDay() != null ? request.getHourOfDay() : 9)
                         .withMinute(request.getMinuteOfHour() != null ? request.getMinuteOfHour() : 0)
                         .withSecond(0);
-
             case INTERVAL:
                 if (request.getIntervalUnit() == IntervalUnit.MINUTES) {
                     return startDate.plusMinutes(request.getIntervalValue());
@@ -83,10 +98,8 @@ public class MessageSchedulerService implements IMessageSchedulerService {
                 } else {
                     return startDate.plusDays(request.getIntervalValue());
                 }
-
             case ONCE:
                 return startDate;
-
             default:
                 return startDate.plusHours(1);
         }

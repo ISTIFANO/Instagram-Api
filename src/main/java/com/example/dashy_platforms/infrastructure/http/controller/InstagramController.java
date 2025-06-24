@@ -13,7 +13,9 @@ import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageReq
 import com.example.dashy_platforms.domaine.model.Reaction.ReactionContainer;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
+import com.example.dashy_platforms.domaine.service.ITemplateService;
 import com.example.dashy_platforms.infrastructure.database.service.InstagramService;
+import com.example.dashy_platforms.infrastructure.database.service.TemplateService;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,10 +47,12 @@ public class InstagramController {
 
 private final InstagramService instagramService;
     private final ObjectMapper objectMapper;
+    private final ITemplateService templateService;
 
-    public InstagramController(InstagramService instagramService, ObjectMapper objectMapper) {
+    public InstagramController(InstagramService instagramService, ObjectMapper objectMapper, ITemplateService templateService) {
         this.instagramService = instagramService;
         this.objectMapper = objectMapper;
+        this.templateService = templateService;
     }
     @Operation(
             summary = "Send text message",
@@ -84,7 +88,7 @@ private final InstagramService instagramService;
     public ResponseEntity<InstagramMessageResponse> sendTemplateMessage(
             @RequestBody InstagramTemplateRequest message) {
 String recipient_id = message.getRecipient().getId();
-        InstagramMessageResponse response = instagramService.sendGenericTemplate(recipient_id, message);
+        InstagramMessageResponse response = templateService.sendGenericTemplate(recipient_id, message);
         if ("SENT".equals(response.getStatus())) {
             return ResponseEntity.ok(response);
         } else {
@@ -97,7 +101,7 @@ String recipient_id = message.getRecipient().getId();
             @RequestParam String recipient_id,
             @RequestBody InstagramButtonTemplateRequest message) {
 
-        InstagramMessageResponse response = instagramService.sendButtonTemplate(recipient_id, message);
+        InstagramMessageResponse response = templateService.sendButtonTemplate(recipient_id, message);
         if ("SENT".equals(response.getStatus())) {
             return ResponseEntity.ok(response);
         } else {
@@ -110,7 +114,7 @@ String recipient_id = message.getRecipient().getId();
             @RequestParam String recipient_id,
             @RequestBody Quick_replies_Request message) {
 
-        InstagramMessageResponse response = instagramService.sendQuick_repliesTemplate(message);
+        InstagramMessageResponse response = templateService.sendQuick_repliesTemplate(message);
         if ("SENT".equals(response.getStatus())) {
             return ResponseEntity.ok(response);
         } else {
@@ -243,7 +247,7 @@ String recipient_id = message.getRecipient().getId();
             Map<String, Object> response = new HashMap<>();
             response.put("attachmentId", attachmentId);
             response.put("mediaType", mediaType);
-            response.putAll(buildStats(instagramService.sendMediaToAllActiveUsers(attachmentId, mediaType, caption)));
+            response.putAll(buildStats(instagramService.sendMediaToAllActiveUsers(attachmentId, mediaType)));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -257,13 +261,10 @@ String recipient_id = message.getRecipient().getId();
 
         MessageTemplate template = new MessageTemplate();
         template.setType("GENERIC");
-
         MessageTemplate.GenericContent content = new MessageTemplate.GenericContent();
         content.setElements(request.getElements());
-
         template.setContent(content);
         template.setCaption(request.getCaption());
-
         Map<String, Boolean> results = instagramService.sendTemplateToAllActiveUsers(template);
 
         long successCount = results.values().stream().filter(Boolean::booleanValue).count();
@@ -305,13 +306,10 @@ String recipient_id = message.getRecipient().getId();
 
     private Map<String, Object> buildStats(Map<String, Boolean> results) {
         long successCount = results.values().stream().filter(Boolean::booleanValue).count();
-        return Map.of(
-                "totalUsers", results.size(),
-                "successCount", successCount,
-                "failureCount", results.size() - successCount,
-                "details", results
+        return Map.of("totalUsers", results.size(), "successCount", successCount, "failureCount", results.size() - successCount, "details", results
         );
     }
+
 }
 
 

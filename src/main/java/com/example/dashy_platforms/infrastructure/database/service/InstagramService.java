@@ -23,12 +23,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.util.RateLimiter;
+import org.hibernate.Cache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -40,6 +43,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 @Slf4j
@@ -503,10 +508,6 @@ public class InstagramService implements IInstagramService {
     public InstagramMessageResponse sendMediaByAttachmentId(String recipientId, String attachmentId, String mediaType) {
         String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
-        System.out.println(recipientId);
-        System.out.println(attachmentId);
-        System.out.println(mediaType);
-
         Map<String, Object> payload = Map.of(
                 "attachment_id", attachmentId
         );
@@ -591,6 +592,8 @@ public class InstagramService implements IInstagramService {
 
         throw new IllegalArgumentException("Unsupported media type: " + contentType);
     }
+
+
     public List<String> getActiveConversations() {
         try {
             String url = String.format("%s/%s/conversations?platform=instagram&access_token=%s",
@@ -612,21 +615,49 @@ public class InstagramService implements IInstagramService {
     }
 
     public List<Message> getConversationMessages(String conversationId) {
-        try {
-            String url = String.format("%s/%s/messages?fields=from,to,message,created_time,id&access_token=%s",
-                    graphApiUrl, conversationId, accessToken);
+        int maxRetries = 3;
+        long initialBackoff = 1000; // 1 second
+        int retryCount = 0;
 
-            MessagesResponse response = restTemplate.getForObject(url, MessagesResponse.class);
+        while (retryCount < maxRetries) {
+            try {
+                String url = String.format("%s/%s/messages?fields=from,to,message,created_time,id&access_token=%s",
+                        graphApiUrl, conversationId, accessToken);
 
-            if (response != null && response.getData() != null) {
-                return response.getData();
+                MessagesResponse response = restTemplate.getForObject(url, MessagesResponse.class);
+
+                if (response != null && response.getData() != null) {
+                    return response.getData();
+                }
+                return Collections.emptyList();
+
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                    retryCount++;
+                    if (retryCount >= maxRetries) {
+                        log.warn("Max retries reached for conversation {}: {}", conversationId, e.getMessage());
+                        return Collections.emptyList();
+                    }
+                    long backoffTime = initialBackoff * (long) Math.pow(2, retryCount);
+                    log.warn("Rate limited. Retry #{}, waiting {} ms for conversation {}",
+                            retryCount, backoffTime, conversationId);
+
+                    try {
+                        Thread.sleep(backoffTime);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return Collections.emptyList();
+                    }
+                } else {
+                    log.error("HTTP error fetching messages for conversation {}: {}", conversationId, e.getMessage());
+                    return Collections.emptyList();
+                }
+            } catch (Exception e) {
+                log.error("Error fetching messages for conversation {}: ", conversationId, e);
+                return Collections.emptyList();
             }
-
-            return Collections.emptyList();
-        } catch (Exception e) {
-            log.error("Error fetching messages for conversation {}: ", conversationId, e);
-            return Collections.emptyList();
         }
+        return Collections.emptyList();
     }
 
     public boolean isConversationActive(List<Message> messages) {
@@ -666,6 +697,7 @@ public class InstagramService implements IInstagramService {
     private boolean isPageMessage(String fromId) {
         return pageId.equals(fromId);
     }
+
     public SendMessageResponse sendTextMessage(String userId, String messageText) {
         SendMessageRequest request = new SendMessageRequest();
         request.setRecipient(new SendMessageRequest.Recipient(userId));
@@ -774,7 +806,7 @@ public class InstagramService implements IInstagramService {
         dbMessage.setCreatedAt(LocalDateTime.now());
         messageRepository.save(dbMessage);
     }
-    public Map<String, Boolean> sendMediaToAllActiveUsers(String attachmentId, String mediaType, String caption) {
+    public Map<String, Boolean> sendMediaToAllActiveUsers(String attachmentId, String mediaType) {
         Set<String> activeUsers = getActiveUsers();
         Map<String, Boolean> results = new HashMap<>();
 
@@ -787,9 +819,7 @@ public class InstagramService implements IInstagramService {
                 attachment.put("type", mediaType.toLowerCase());
                 ObjectNode payload = attachment.putObject("payload");
                 payload.put("attachment_id", attachmentId);
-                if (caption != null && !caption.isEmpty()) {
-                    message.put("text", caption);
-                }
+
                 String url = String.format("%s/%s/messages", graphApiUrl, pageId);
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);

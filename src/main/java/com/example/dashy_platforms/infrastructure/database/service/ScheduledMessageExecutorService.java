@@ -2,35 +2,45 @@ package com.example.dashy_platforms.infrastructure.database.service;
 
 import com.example.dashy_platforms.domaine.enums.IntervalUnit;
 import com.example.dashy_platforms.domaine.enums.ScheduleType;
-import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
+import com.example.dashy_platforms.domaine.helper.JsoonFormat;
+import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessageTemplate;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
-import com.example.dashy_platforms.domaine.model.Recipient;
+import com.example.dashy_platforms.domaine.model.ScheduleMessage.TemplateScheduler;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
+import com.example.dashy_platforms.domaine.service.ITemplateService;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.ScheduledMessageRepository;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 @Transactional
 @Service
+@Slf4j
 public class ScheduledMessageExecutorService implements IMessageSchedulerService.IScheduledMessageExecutorService {
     private final ScheduledMessageRepository scheduledMessageRepository;
     private final IInstagramService instagramService;
     private final MessageSchedulerService schedulerService;
-
+private final ITemplateService templateService;
     public ScheduledMessageExecutorService(
             ScheduledMessageRepository scheduledMessageRepository,
             IInstagramService instagramMessageService,
-            MessageSchedulerService schedulerService
+            MessageSchedulerService schedulerService, ITemplateService templateService
+
     ) {
         this.scheduledMessageRepository = scheduledMessageRepository;
         this.instagramService = instagramMessageService;
         this.schedulerService = schedulerService;
+        this.templateService = templateService;
     }
 
     @Scheduled(fixedRate = 60000)
@@ -41,12 +51,68 @@ public class ScheduledMessageExecutorService implements IMessageSchedulerService
 
         for (ScheduledMessageEntity scheduledMessage : messagesToSend) {
             try {
-                InstagramMessageRequest messageRequest = new InstagramMessageRequest();
-                messageRequest.setRecipient(new Recipient(scheduledMessage.getRecipientId()));
-                messageRequest.setMessage(new MessageDto(scheduledMessage.getMessageContent()));
+                switch (scheduledMessage.getMessagetype()) {
+                    case "TEXT":
+                        this.instagramService.sendTextToAllActiveUsers(scheduledMessage.getMessageContent());
+                        break;
+                    case "MEDIA":
+                        this.instagramService.sendMediaToAllActiveUsers(scheduledMessage.getAttachment(), scheduledMessage.getMediaType());
+                        break;
+                    case "TEMPLATE":
+                        ObjectMapper mapper = new ObjectMapper();
+                        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                        System.out.println(scheduledMessage.getMessageContent());
+                        InstagramTemplateRequest templateData = this.templateService.getTemplateDataByCode(scheduledMessage.getMessageContent());
+                        MessageTemplate templatemsg = new MessageTemplate();
+                        templatemsg.setType("GENERIC");
 
-                InstagramMessageResponse response = instagramService.sendTextMessage(messageRequest);
+                        MessageTemplate.GenericContent genericContent = new MessageTemplate.GenericContent();
+                        List<MessageTemplate.GenericContent.Element> elements = new ArrayList<>();
+                        List<ElementModel> instagramElements = templateData.getMessage()
+                                .getAttachment()
+                                .getPayload()
+                                .getElements();
 
+                        for (ElementModel instagramElement : instagramElements) {
+                            MessageTemplate.GenericContent.Element element = new MessageTemplate.GenericContent.Element();
+                            element.setTitle(instagramElement.getTitle());
+                            element.setImage_url(instagramElement.getImage_url());
+                            element.setSubtitle(instagramElement.getSubtitle());
+
+                            if (instagramElement.getDefaultAction() != null) {
+                                MessageTemplate.GenericContent.Element.DefaultAction defaultAction =
+                                        new MessageTemplate.GenericContent.Element.DefaultAction();
+                                defaultAction.setType(instagramElement.getDefaultAction().getType());
+                                defaultAction.setUrl(instagramElement.getDefaultAction().getUrl());
+                                element.setDefault_action(defaultAction);
+                            }
+                            if (instagramElement.getButtons() != null) {
+                                List<MessageTemplate.Button> buttons = new ArrayList<>();
+                                for (TemplateButton instagramButton : instagramElement.getButtons()) {
+                                    MessageTemplate.Button button = new MessageTemplate.Button();
+                                    button.setType(instagramButton.getType());
+                                    button.setUrl(instagramButton.getUrl());
+                                    button.setTitle(instagramButton.getTitle());
+                                    button.setPayload(instagramButton.getPayload());
+                                    buttons.add(button);
+                                }
+                                element.setButtons(buttons);
+                            }
+
+                            elements.add(element);
+                        }
+
+                        genericContent.setElements(elements);
+                        templatemsg.setContent(genericContent);
+
+                        this.instagramService.sendTemplateToAllActiveUsers(templatemsg);
+                        break;
+//                    case "QUICK_REPLY":
+//                        this.instagramService.sendCustomMessageToAllActiveUsers(scheduledMessage);
+//                        break;
+                    default:
+                        log.warn("Type de message non reconnu: {}", scheduledMessage.getMessagetype());
+                }
                 scheduledMessage.setLastExecution(now);
                 scheduledMessage.setExecutionCount(scheduledMessage.getExecutionCount() + 1);
 
@@ -54,14 +120,16 @@ public class ScheduledMessageExecutorService implements IMessageSchedulerService
                     scheduledMessage.setNextExecution(calculateNextExecution(scheduledMessage));
                 } else {
                     scheduledMessage.setIsActive(false);
+                    log.info("Désactivation du message planifié ID: {}", scheduledMessage.getId());
                 }
 
                 scheduledMessageRepository.save(scheduledMessage);
 
             } catch (Exception e) {
-                System.err.println("Erreur lors de l'envoi du message planifié: " + e.getMessage());
+                log.error("Erreur lors de l'envoi du message planifié ID {}: {}",
+                        scheduledMessage.getId(), e.getMessage());
+//                saveFailedExecution(scheduledMessage, e.getMessage());
             }
-
         }
     }
 
@@ -69,12 +137,14 @@ public class ScheduledMessageExecutorService implements IMessageSchedulerService
         if (message.getMaxExecutions() != null &&
                 message.getExecutionCount() >= message.getMaxExecutions()) {
             return false;
-        }if (message.getScheduleType() == ScheduleType.ONCE) {
+        }
+        if (message.getScheduleType() == ScheduleType.ONCE) {
             return false;
         }
 
         return true;
     }
+
     private LocalDateTime calculateNextExecution(ScheduledMessageEntity message) {
         LocalDateTime lastExecution = message.getLastExecution();
 
@@ -100,6 +170,21 @@ public class ScheduledMessageExecutorService implements IMessageSchedulerService
             default:
                 return lastExecution.plusHours(1);
         }
+
+    }
+    private String messageTemplateObject(ScheduledMessageEntity scheduledMessage) {
+  ScheduledMessageEntity templateMsg = scheduledMessageRepository.findById(scheduledMessage.getId()).get();
+
+  String template = templateMsg.getMessageContent();
+
+        return template;
     }
 
+
+
+
+
 }
+
+
+

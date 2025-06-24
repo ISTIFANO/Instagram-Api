@@ -8,11 +8,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 @Entity
 @Table(name = "scheduled_messages")
 public class ScheduledMessageEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
@@ -23,14 +26,24 @@ public class ScheduledMessageEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String messageContent;
 
+    @Column(nullable = false)
+    private String messagetype = "TEXT";
+
+    @Column(nullable = false)
+    private String attachment= "Has no media";
+
+    @Column(nullable = false)
+    private String mediaType = "Has no media";
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private ScheduleType scheduleType;
 
     @Column(name = "interval_value")
     private Integer intervalValue;
 
-    @Column(name = "interval_unit")
     @Enumerated(EnumType.STRING)
+    @Column(name = "interval_unit")
     private IntervalUnit intervalUnit;
 
     @Column(name = "day_of_week")
@@ -51,20 +64,15 @@ public class ScheduledMessageEntity {
     @Column(name = "last_execution")
     private LocalDateTime lastExecution;
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "max_executions")
     private Integer maxExecutions;
 
-    @Column(name = "execution_count")
+    @Column(name = "execution_count", nullable = false)
     private Integer executionCount = 0;
-
-    public ScheduledMessageEntity() {
-        this.createdAt = LocalDateTime.now();
-    }
-
 }
