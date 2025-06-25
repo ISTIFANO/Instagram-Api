@@ -46,6 +46,14 @@ public class MessageSchedulerService implements IMessageSchedulerService {
                         scheduledMessage.setMessageContent(request.getMessageContent().getCode());
                         break;
 
+                    case "QUICK_REPLY":
+                        scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+                        break;
+
+                    case "TEMPLATE_BUTTON":
+                        scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+                        break;
+
                     case "TEXT":
                         scheduledMessage.setMessageContent(request.getMessageContent().getText());
                         break;

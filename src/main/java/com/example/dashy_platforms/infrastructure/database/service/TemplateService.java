@@ -1,13 +1,17 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.InstagramMessageR;
 import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessageTemplate;
 import com.example.dashy_platforms.domaine.model.GenericTemplateData;
 import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
 import com.example.dashy_platforms.domaine.model.InstagramTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
+import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.domaine.service.ITemplateService;
+import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.TemplateInstagram;
+import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.TemplateRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +24,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -46,6 +51,10 @@ public class TemplateService implements ITemplateService {
     private ObjectMapper objectMapper;
     @Autowired
     private TemplateRepository templateRepository;
+    @Autowired
+    private MessageRepository messageRepository;
+    @Autowired
+    private IInstagramService instagramService;
 
     public String generateUniqueTemplateCode() {
         String code;
@@ -231,5 +240,92 @@ public class TemplateService implements ITemplateService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to parse template content", e);
         }
+    }
+
+    public InstagramMessageR getQuick_replies(String code) {
+        TemplateInstagram template = templateRepository.findByCode(code)
+                .orElseThrow(() -> new RuntimeException(" Template not found with code :  " + code));
+        String jsonContent = template.getTemplateContent();
+        try {
+            return objectMapper.readValue(jsonContent, InstagramMessageR.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to parse template content", e);
+        }
+    }
+
+    public InstagramButtonTemplateRequest getTemplatebutton(String code) {
+        TemplateInstagram template = templateRepository.findByCode(code)
+                .orElseThrow(() -> new RuntimeException(" Template not found with code :  " + code));
+        String jsonContent = template.getTemplateContent();
+        try {
+            return objectMapper.readValue(jsonContent, InstagramButtonTemplateRequest.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to parse template content", e);
+        }
+    }
+
+    @Override
+    public Map<String, Boolean> sendButtonTemplateToAllActiveUsers(InstagramButtonTemplateRequest templateRequest) {
+        Set<String> activeUsers = this.instagramService.getActiveUsers();
+        Map<String, Boolean> results = new HashMap<>();
+
+        for (String userId : activeUsers) {
+            try {
+                TemplateInstagram dbMessage = templateRepository.save(new TemplateInstagram());
+
+                String url = String.format("%s/v22.0/me/messages", graphApiUrl);
+
+                Map<String, Object> requestBody = new HashMap<>();
+                requestBody.put("recipient", Map.of("id", userId));
+                requestBody.put("message", templateRequest.getMessage());
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.setBearerAuth(accessToken);
+
+                HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+                if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+//                    String messageId = (String) response.getBody().get("message_id");
+                    dbMessage.setTemplateType("button_template");
+                    String jsonTemplateContent = objectMapper.writeValueAsString(templateRequest);
+                    dbMessage.setLang("fr");
+                    dbMessage.setName(templateRequest.getMessage().getAttachment().getPayload().getElements().get(0).getTitle());
+                    dbMessage.setRecipientId(templateRequest.getRecipient().getId());
+                    dbMessage.setCompanyId("1946986879374368");
+                    dbMessage.setStatus("SENT");
+                    dbMessage.setTemplateType("button");
+                    dbMessage.setCode(generateUniqueTemplateCode());
+                    dbMessage.setCreatedAt(LocalDateTime.now());
+                    dbMessage.setTemplateContent(jsonTemplateContent);
+                    templateRepository.save(dbMessage);
+
+                    results.put(userId, true);
+                } else {
+                    dbMessage.setStatus("FAILED");
+                    templateRepository.save(dbMessage);
+                    results.put(userId, false);
+                }
+
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                results.put(userId, false);
+                TemplateInstagram dbMessage = new TemplateInstagram();
+                dbMessage.setTemplateType("button_template");
+                dbMessage.setLang("fr");
+                dbMessage.setName(templateRequest.getMessage().getAttachment().getPayload().getElements().get(0).getTitle());
+                dbMessage.setRecipientId(templateRequest.getRecipient().getId());
+                dbMessage.setCompanyId("1946986879374368");
+                dbMessage.setStatus("FAILED");
+                dbMessage.setTemplateType("button");
+                dbMessage.setCode(generateUniqueTemplateCode());
+                dbMessage.setCreatedAt(LocalDateTime.now());
+                dbMessage.setTemplateContent("Failed to send: " + e.getMessage());
+                templateRepository.save(dbMessage);
+            }
+        }
+
+        return results;
     }
 }

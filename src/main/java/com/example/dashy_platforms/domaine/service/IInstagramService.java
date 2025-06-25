@@ -29,4 +29,5 @@ public interface IInstagramService {
         public Map<String, Boolean> sendTemplateToAllActiveUsers(MessageTemplate template) ;
             public Map<String, Boolean> sendMediaToAllActiveUsers(String attachmentId, String mediaType);
   public   MessageEntity getVideoMessageByContent(String messageContent)throws Exception ;
+    Set<String> getActiveUsers();
         }
