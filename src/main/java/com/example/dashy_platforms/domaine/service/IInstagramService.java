@@ -10,6 +10,7 @@ import com.example.dashy_platforms.domaine.model.MessageMedia.MessageFileRequest
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
+import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 
 import java.util.Map;
 import java.util.Set;
@@ -27,4 +28,5 @@ public interface IInstagramService {
     public Map<String, Boolean> sendCustomMessageToAllActiveUsers(InstagramMessageR request) ;
         public Map<String, Boolean> sendTemplateToAllActiveUsers(MessageTemplate template) ;
             public Map<String, Boolean> sendMediaToAllActiveUsers(String attachmentId, String mediaType);
+  public   MessageEntity getVideoMessageByContent(String messageContent)throws Exception ;
         }

@@ -11,6 +11,7 @@ import com.example.dashy_platforms.domaine.model.ScheduleMessage.TemplateSchedul
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
 import com.example.dashy_platforms.domaine.service.ITemplateService;
+import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.ScheduledMessageRepository;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -61,7 +62,6 @@ private final ITemplateService templateService;
                     case "TEMPLATE":
                         ObjectMapper mapper = new ObjectMapper();
                         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                        System.out.println(scheduledMessage.getMessageContent());
                         InstagramTemplateRequest templateData = this.templateService.getTemplateDataByCode(scheduledMessage.getMessageContent());
                         MessageTemplate templatemsg = new MessageTemplate();
                         templatemsg.setType("GENERIC");

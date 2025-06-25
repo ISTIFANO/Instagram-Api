@@ -22,9 +22,6 @@ public class MessageEntity {
     @Column(name = "message_content")
     private String messageContent;
 
-    @Column(name = "template_name")
-    private String templateName;
-
     @Column(name = "message_type")
     private String messageType;
 
@@ -39,10 +36,9 @@ public class MessageEntity {
 
     public MessageEntity() {}
 
-    public MessageEntity(String recipientId, String messageContent, String templateName, String messageType) {
+    public MessageEntity(String recipientId, String messageContent, String messageType) {
         this.recipientId = recipientId;
         this.messageContent = messageContent;
-        this.templateName = templateName;
         this.messageType = messageType;
         this.status = "PENDING";
         this.createdAt = LocalDateTime.now();

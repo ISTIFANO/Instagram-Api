@@ -24,7 +24,7 @@ public class ScheduleMessageRequest {
     private Integer minuteOfHour;
     private Integer maxExecutions;
     private String messageType;
+    private String mediaType;
+    private String attachmentId;
     private LocalDateTime startDate;
-
-
 }

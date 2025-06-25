@@ -94,6 +94,7 @@ public class TemplateService implements ITemplateService {
                 // ajouter api pour recupirer le CompanyId
                 dbMessage.setCompanyId("1946986879374368");
                 dbMessage.setStatus("SENT");
+                dbMessage.setTemplateType("generic");
                 dbMessage.setCode(generateUniqueTemplateCode());
                 dbMessage.setCreatedAt(LocalDateTime.now());
                 dbMessage.setTemplateContent(jsonTemplateContent);
@@ -144,6 +145,7 @@ public class TemplateService implements ITemplateService {
                 // ajouter api pour recupirer le CompanyId
                 dbMessage.setCompanyId("1946986879374368");
                 dbMessage.setStatus("SENT");
+                dbMessage.setTemplateType("button");
                 dbMessage.setCode(generateUniqueTemplateCode());
                 dbMessage.setCreatedAt(LocalDateTime.now());
                 dbMessage.setTemplateContent(jsonTemplateContent);
@@ -196,6 +198,7 @@ public class TemplateService implements ITemplateService {
                 dbMessage.setCompanyId("1946986879374368");
                 dbMessage.setStatus("SENT");
                 dbMessage.setLang("fr");
+                dbMessage.setTemplateType("quick_replies");
                 dbMessage.setCode(generateUniqueTemplateCode());
                 dbMessage.setCreatedAt(LocalDateTime.now());
                 dbMessage.setTemplateContent(jsonTemplateContent);
