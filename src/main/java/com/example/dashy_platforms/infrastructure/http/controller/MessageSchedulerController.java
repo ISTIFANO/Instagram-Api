@@ -1,5 +1,4 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
-
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.ScheduleMessage.ScheduleMessageRequest;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
@@ -14,8 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
