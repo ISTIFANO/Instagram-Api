@@ -30,4 +30,6 @@ public class Company {
     public boolean isWorkingTime(LocalTime time) {
         return !time.isBefore(workStartTime) && !time.isAfter(workEndTime);
     }
+
+
 }

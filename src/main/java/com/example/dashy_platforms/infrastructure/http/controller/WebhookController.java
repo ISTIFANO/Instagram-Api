@@ -12,12 +12,10 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/instagram")
-public class WebhookController {
+public class WebhookController{
 
     @Value("${instagram.graph.access.token:default-value}")
     private String accessToken;
@@ -48,7 +46,6 @@ public class WebhookController {
             @RequestBody(required = false) String rawPayload) {
 
         try {
-            // Handle raw payload if needed
             if (rawPayload != null) {
                 System.out.println("Received raw payload: " + rawPayload);
                 JsoonFormat jsoonFormat = new JsoonFormat();
@@ -57,16 +54,25 @@ public class WebhookController {
             }
 
             // Handle structured payload
-            if (payload != null) {
+            if (payload != null && payload.getEntry() != null) {
                 payload.getEntry().forEach(entry -> {
-                    entry.getMessaging().forEach(msg -> {
-                        String senderId = msg.getSender().getId();
-                        String text = msg.getMessage().getText();
-                        LocalDateTime receivedAt = Instant.ofEpochMilli(msg.getTimestamp())
-                                .atZone(ZoneId.of("Africa/Casablanca"))
-                                .toLocalDateTime();
-                        autoReplyService.checkAndReply(senderId, text, receivedAt);
-                    });
+                    if (entry.getMessaging() != null) {
+                        entry.getMessaging().forEach(msg -> {
+                            try {
+                                if (msg != null && msg.getSender() != null && msg.getMessage() != null) {
+                                    String senderId = msg.getSender().getId();
+                                    String text = msg.getMessage().getText();
+                                    LocalDateTime receivedAt = Instant.ofEpochMilli(msg.getTimestamp())
+                                            .atZone(ZoneId.of("Africa/Casablanca"))
+                                            .toLocalDateTime();
+                                    autoReplyService.checkAndReply(senderId, text, receivedAt);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Error processing individual message: " + e.getMessage());
+                                e.printStackTrace();
+                            }
+                        });
+                    }
                 });
                 return ResponseEntity.ok("WEBHOOK_RECEIVED");
             }

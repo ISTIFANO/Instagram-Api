@@ -3,11 +3,14 @@ package com.example.dashy_platforms.infrastructure.database.service;
 import ch.qos.logback.classic.Logger;
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.Autoaction.AutoactionConfigDTO;
+import com.example.dashy_platforms.domaine.model.Autoaction.AutoactionResponseDTO;
 import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
 import com.example.dashy_platforms.infrastructure.database.entities.Autoaction;
 import com.example.dashy_platforms.infrastructure.database.entities.Company;
 import com.example.dashy_platforms.infrastructure.database.repositeries.AutoactionRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.CompanyRepository;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +46,8 @@ private final InstagramService instagramService;
     @Value("${instagram.graph.access.token:default-value}")
     private String accessToken;
     private final RestTemplate restTemplate;
-
+    @Value("${instagram.graph.page.id}")
+    private String pageId;
     @Value("${instagram.graph.access.token}")
     private String pageAccessToken;
 public AutoReplyService(AutoactionRepository autoactionRepository, CompanyRepository companyRepository, InstagramService instagramService) {
@@ -55,16 +59,15 @@ public AutoReplyService(AutoactionRepository autoactionRepository, CompanyReposi
     public void checkAndReply(String senderId, String message, LocalDateTime receivedAt) {
         Autoaction autoaction = autoactionRepository.findByCompanyName("ISTIFANO")
                 .orElseThrow(() -> new RuntimeException("Aucune configuration trouvée"));
-System.out.println(autoaction);
         if (shouldReply(autoaction, receivedAt)) {
             String replyMessage = buildReplyMessage(autoaction, receivedAt);
-            System.out.println(replyMessage);
-            System.out.println(senderId);
+
             sendReply(senderId, replyMessage);
         }
     }
 
-    private boolean shouldReply(Autoaction autoaction, LocalDateTime receivedAt) {
+
+    public boolean shouldReply(Autoaction autoaction, LocalDateTime receivedAt) {
         List<String> nonWorkingDays = Arrays.asList(autoaction.getNonWorkingDays().split(","));
         DayOfWeek currentDay = receivedAt.getDayOfWeek();
         if (nonWorkingDays.contains(currentDay.name())) {
@@ -120,30 +123,30 @@ System.out.println(autoaction);
                 .map(day -> day.substring(0, 3))
                 .collect(Collectors.joining(","));
     }
-    @Retryable(
-            value = {Exception.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 1000)
-    )
-
+    private boolean isPageMessage(String fromId) {
+        return pageId.equals(fromId);
+    }
     private void sendReply(String recipientId, String message) {
-        final String url = String.format("%s/v22.0/me/messages", graphApiUrl);
 
-        // Create request payload
-        Map<String, Object> request = Map.of(
-                "recipient", Map.of("id", recipientId),
-                "message", Map.of("text", message),
-                "messaging_type", "RESPONSE"
-        );
-
+ if (isPageMessage(recipientId)) {
+     return;
+ }
         try {
+
+            final String url = String.format("%s/v22.0/me/messages?access_token=%s",
+                    graphApiUrl,
+                    pageAccessToken);
+            Map<String, Object> request = Map.of(
+                    "recipient", Map.of("id", recipientId),
+                    "message", Map.of("text", message),
+                    "messaging_type", "RESPONSE"
+            );
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(accessToken);
 
             HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(request, headers);
 
-            RestTemplate restTemplate = new RestTemplate();
             ResponseEntity<Map> response = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
@@ -151,27 +154,33 @@ System.out.println(autoaction);
                     Map.class
             );
 
-            // Validate response
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String messageId = (String) response.getBody().get("message_id");
             } else {
-
                 throw new RuntimeException("Failed to send message: " + response.getStatusCode());
             }
         } catch (RestClientException e) {
             throw new RuntimeException("Error sending message to Instagram API", e);
         }
     }
+    @Transactional
+    public AutoactionResponseDTO updateAutoactionConfig(AutoactionConfigDTO configDTO) {
 
-    public Autoaction updateAutoactionConfig(AutoactionConfigDTO configDTO) {
-        Company company = companyRepository.findByName(configDTO.getCompanyName())
+        Company company = companyRepository.findCompanyByName(configDTO.getCompanyName())
                 .orElseGet(() -> {
-                    Company newCompany = new Company();
-                    newCompany.setName(configDTO.getCompanyName());
+            Company newCompany = new Company();
+            newCompany.setName(configDTO.getCompanyName());
+            newCompany.setWorkStartTime(LocalTime.parse(configDTO.getWorkStartTime()));
+            newCompany.setWorkEndTime(LocalTime.parse(configDTO.getWorkEndTime()));
+            Autoaction newAutoaction = new Autoaction();
+            newAutoaction.setCompany(newCompany);
+            newAutoaction.setPauseStart(LocalTime.parse(configDTO.getPauseStart()));
+            newAutoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
+            newAutoaction.setNonWorkingDays(configDTO.getNonWorkingDays().toString());
                     return companyRepository.save(newCompany);
-                });
+        });
 
-        // Mettre à jour les heures de travail si fournies
+        // Update work hours
         if (configDTO.getWorkStartTime() != null) {
             company.setWorkStartTime(LocalTime.parse(configDTO.getWorkStartTime()));
         }
@@ -181,11 +190,7 @@ System.out.println(autoaction);
         companyRepository.save(company);
 
         Autoaction autoaction = autoactionRepository.findByCompanyName(configDTO.getCompanyName())
-                .orElseGet(() -> {
-                    Autoaction newAutoaction = new Autoaction();
-                    newAutoaction.setCompany(company);
-                    return newAutoaction;
-                });
+                .orElseThrow(() -> new RuntimeException("Autoaction config not found for company: " + configDTO.getCompanyName()));
 
         if (configDTO.getNonWorkingDays() != null) {
             autoaction.setNonWorkingDays(String.join(",", configDTO.getNonWorkingDays()));
@@ -197,8 +202,20 @@ System.out.println(autoaction);
             autoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
         }
 
-        return autoactionRepository.save(autoaction);
+        autoactionRepository.save(autoaction);
+
+        // Build response DTO
+        AutoactionResponseDTO response = new AutoactionResponseDTO();
+        response.setCompanyName(company.getName());
+        response.setWorkStartTime(company.getWorkStartTime().toString());
+        response.setWorkEndTime(company.getWorkEndTime().toString());
+        response.setPauseStart(autoaction.getPauseStart().toString());
+        response.setPauseEnd(autoaction.getPauseEnd().toString());
+        response.setNonWorkingDays(List.of(autoaction.getNonWorkingDays().split(",")));
+
+        return response;
     }
+
 
     public AutoactionConfigDTO getAutoactionConfig(String companyName) {
         Autoaction autoaction = autoactionRepository.findByCompanyName(companyName)
@@ -213,5 +230,11 @@ System.out.println(autoaction);
         dto.setWorkEndTime(autoaction.getCompany().getWorkEndTime().toString());
 
         return dto;
+    }
+    public Autoaction getAutoaction(String companyName) {
+        return autoactionRepository.findByCompanyName(companyName)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        String.format("Configuration Autoaction introuvable pour l'entreprise '%s'", companyName)
+                ));
     }
 }

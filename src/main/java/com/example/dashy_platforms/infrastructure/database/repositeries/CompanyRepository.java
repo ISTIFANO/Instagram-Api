@@ -19,6 +19,8 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     // Méthode pour vérifier l'existence
     boolean existsByName(String name);
+    @Query("SELECT c FROM Company c WHERE c.name = :name")
+    Optional<Company> findCompanyByName(@Param("name") String name);
 
     // Méthode pour trouver par ID avec les relations chargées
     @Query("SELECT c FROM Company c LEFT JOIN FETCH c.autoactions WHERE c.id = :id")

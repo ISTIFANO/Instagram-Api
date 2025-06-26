@@ -27,6 +27,12 @@ public class Autoaction {
     @Column(name = "pause_end", nullable = false)
     private LocalTime pauseEnd;
 
+    @Column(name = "message_type")
+    private String messageType;
+
+    @Column(name ="message")
+    private String message;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
