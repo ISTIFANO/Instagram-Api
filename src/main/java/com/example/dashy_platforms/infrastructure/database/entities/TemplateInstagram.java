@@ -48,6 +48,9 @@ public class TemplateInstagram {
     @Column(name = "product_id")
     private Long productId;
 
+    @Column(name = "template_type")
+    private String templateType ="GENERIC";
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

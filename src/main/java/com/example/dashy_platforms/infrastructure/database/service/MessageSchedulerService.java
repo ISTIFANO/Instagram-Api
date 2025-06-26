@@ -40,7 +40,33 @@ public class MessageSchedulerService implements IMessageSchedulerService {
             for (String userId : activeUsers) {
                 ScheduledMessageEntity scheduledMessage = new ScheduledMessageEntity();
                 scheduledMessage.setRecipientId(userId);
-                scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+
+                switch (request.getMessageType()) {
+                    case "TEMPLATE":
+                        scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+                        break;
+
+                    case "QUICK_REPLY":
+                        scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+                        break;
+
+                    case "TEMPLATE_BUTTON":
+                        scheduledMessage.setMessageContent(request.getMessageContent().getCode());
+                        break;
+
+                    case "TEXT":
+                        scheduledMessage.setMessageContent(request.getMessageContent().getText());
+                        break;
+                    case "MEDIA":
+                        scheduledMessage.setMessageContent(request.getAttachmentId());
+                        scheduledMessage.setAttachment(request.getAttachmentId());
+                        scheduledMessage.setMediaType(request.getMediaType());
+                        break;
+
+                    default:
+                        scheduledMessage.setMessageContent(request.getMessageContent().getText());
+                        break;
+                }
                 scheduledMessage.setMessagetype(request.getMessageType());
                 scheduledMessage.setScheduleType(request.getScheduleType());
                 scheduledMessage.setIntervalValue(request.getIntervalValue());
@@ -114,5 +140,15 @@ public class MessageSchedulerService implements IMessageSchedulerService {
     public List<ScheduledMessageEntity> getActiveScheduledMessages(String recipientId) {
         return scheduledMessageRepository.findByRecipientIdAndIsActiveTrue(recipientId);
     }
+    public String getMediaType(String contentType) {
+        if (contentType == null) {
+            throw new IllegalArgumentException("Content type is null");
+        }
 
+        if (contentType.startsWith("image/")) return "image";
+        if (contentType.startsWith("audio/")) return "audio";
+        if (contentType.startsWith("video/")) return "video";
+
+        throw new IllegalArgumentException("Unsupported media type: " + contentType);
+    }
 }

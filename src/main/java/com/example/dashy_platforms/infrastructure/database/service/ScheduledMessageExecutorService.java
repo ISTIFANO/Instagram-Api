@@ -4,14 +4,18 @@ import com.example.dashy_platforms.domaine.enums.IntervalUnit;
 import com.example.dashy_platforms.domaine.enums.ScheduleType;
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.*;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.InstagramMessageR;
 import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessageTemplate;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
 import com.example.dashy_platforms.domaine.model.ScheduleMessage.TemplateScheduler;
+import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
 import com.example.dashy_platforms.domaine.service.ITemplateService;
+import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
+import com.example.dashy_platforms.infrastructure.database.entities.TemplateInstagram;
 import com.example.dashy_platforms.infrastructure.database.repositeries.ScheduledMessageRepository;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,7 +65,6 @@ private final ITemplateService templateService;
                     case "TEMPLATE":
                         ObjectMapper mapper = new ObjectMapper();
                         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                        System.out.println(scheduledMessage.getMessageContent());
                         InstagramTemplateRequest templateData = this.templateService.getTemplateDataByCode(scheduledMessage.getMessageContent());
                         MessageTemplate templatemsg = new MessageTemplate();
                         templatemsg.setType("GENERIC");
@@ -107,9 +110,16 @@ private final ITemplateService templateService;
 
                         this.instagramService.sendTemplateToAllActiveUsers(templatemsg);
                         break;
-//                    case "QUICK_REPLY":
-//                        this.instagramService.sendCustomMessageToAllActiveUsers(scheduledMessage);
-//                        break;
+                      case "QUICK_REPLY":
+                          InstagramMessageR quick_replies = this.templateService.getQuick_replies(scheduledMessage.getMessageContent());
+                          this.instagramService.sendCustomMessageToAllActiveUsers(quick_replies);
+                        break;
+                    case "TEMPLATE_BUTTON":
+                        InstagramButtonTemplateRequest template_button = this.templateService.getTemplatebutton(scheduledMessage.getMessageContent());
+
+                        this.templateService.sendButtonTemplateToAllActiveUsers(template_button);
+
+                        break;
                     default:
                         log.warn("Type de message non reconnu: {}", scheduledMessage.getMessagetype());
                 }

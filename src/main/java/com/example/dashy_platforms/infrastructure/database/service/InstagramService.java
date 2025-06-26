@@ -851,7 +851,8 @@ public class InstagramService implements IInstagramService {
     }
     private void saveMediaMessageToDatabase(String userId, String attachmentId, String mediaType, boolean success) {
         MessageEntity message = new MessageEntity();
-        message.setMessageType(mediaType.toUpperCase() + "_MESSAGE");
+        message.setMessageType(mediaType.toLowerCase());
+        message.setCreatedAt(LocalDateTime.now());
         message.setRecipientId(userId);
         message.setMessageContent(attachmentId);
         message.setStatus(success ? "SENT" : "FAILED");
@@ -1028,5 +1029,11 @@ public class InstagramService implements IInstagramService {
         }
 
         return results;
+    }
+
+    public MessageEntity getVideoMessageByContent(String messageContent) throws Exception {
+        Optional<MessageEntity> optional = messageRepository.findByMessageContent(messageContent);
+        return optional.orElseThrow(() -> new Exception(
+                "Aucun message vidéo trouvé avec le contenu : " + messageContent));
     }
 }

@@ -1,92 +1,88 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
+import com.example.dashy_platforms.domaine.model.Webhook.WebhookPayload;
+import com.example.dashy_platforms.infrastructure.database.service.AutoReplyService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @RestController
 @RequestMapping("/api/instagram")
-public class WebhookController {
+public class WebhookController{
 
     @Value("${instagram.graph.access.token:default-value}")
     private String accessToken;
 
+    @Autowired
+    private AutoReplyService autoReplyService;
+
+    // Verification endpoint (GET)
     @GetMapping("/webhook")
     public ResponseEntity<String> verifyWebhook(
             @RequestParam(name = "hub.mode", required = false) String mode,
             @RequestParam(name = "hub.challenge", required = false) String challenge,
             @RequestParam(name = "hub.verify_token", required = false) String token) {
+
         if (mode != null && token != null) {
             if (mode.equals("subscribe") && token.equals(accessToken)) {
                 return ResponseEntity.ok(challenge);
-            } else {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Verification token mismatch");
             }
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Verification token mismatch");
         }
         return ResponseEntity.badRequest().body("Missing mode or token");
     }
 
+    // Main webhook processing endpoint (POST)
     @PostMapping("/webhook")
-    public ResponseEntity<String> receiveWebhook(@RequestBody String payload) {
-        System.out.println("Received webhook payload: " + payload);
-        return ResponseEntity.ok("EVENT_RECEIVED");
-    }
-
-    @PostMapping("/instagram")
-    public ResponseEntity<String> handleReadReceipt(@RequestBody String payload) {
+    public ResponseEntity<String> handleWebhook(
+            @RequestBody(required = false) WebhookPayload payload,
+            @RequestBody(required = false) String rawPayload) {
 
         try {
-            JsoonFormat jsoonFormat = new JsoonFormat();
-            jsoonFormat.printJson(payload);
-//            processInstagramWebhook(payload);
-        return ResponseEntity.ok("EVENT_RECEIVED");}catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing webhook");
-
-        }
-    }
-    private void processInstagramWebhook(Map<String, Object> payload ) {
-        try {
-            String object = (String) payload.get("object");
-            if (!"instagram".equals(object)) {
-                return;
+            if (rawPayload != null) {
+                System.out.println("Received raw payload: " + rawPayload);
+                JsoonFormat jsoonFormat = new JsoonFormat();
+                jsoonFormat.printJson(rawPayload);
+                return ResponseEntity.ok("RAW_EVENT_RECEIVED");
             }
 
-            List<Map<String, Object>> entries = (List<Map<String, Object>>) payload.get("entry");
-
-            for (Map<String,Object> entry : entries) {
-                List<Map<String, Object>> messagingList = (List<Map<String, Object>>) entry.get("messaging");
-
-                if (messagingList != null) {
-                    for (Map<String, Object> messaging : messagingList) {
-                        processMessaging(messaging);
+            // Handle structured payload
+            if (payload != null && payload.getEntry() != null) {
+                payload.getEntry().forEach(entry -> {
+                    if (entry.getMessaging() != null) {
+                        entry.getMessaging().forEach(msg -> {
+                            try {
+                                if (msg != null && msg.getSender() != null && msg.getMessage() != null) {
+                                    String senderId = msg.getSender().getId();
+                                    String text = msg.getMessage().getText();
+                                    LocalDateTime receivedAt = Instant.ofEpochMilli(msg.getTimestamp())
+                                            .atZone(ZoneId.of("Africa/Casablanca"))
+                                            .toLocalDateTime();
+                                    autoReplyService.checkAndReply(senderId, text, receivedAt);
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Error processing individual message: " + e.getMessage());
+                                e.printStackTrace();
+                            }
+                        });
                     }
-                }
+                });
+                return ResponseEntity.ok("WEBHOOK_RECEIVED");
             }
-        }catch (Exception e) {
+
+            return ResponseEntity.badRequest().body("No valid payload received");
+
+        } catch (Exception e) {
             e.printStackTrace();
-        }
-        return;
-    }
-    private void processMessaging(Map<String, Object> messaging) {
-        // Handle read receipts
-        if (messaging.containsKey("read")) {
-//            handleReadReceipt(messaging);
-        }
-
-        // Handle incoming messages
-        if (messaging.containsKey("message")) {
-//            handleIncomingMessage(messaging);
-        }
-
-        // Handle delivery receipts (if needed)
-        if (messaging.containsKey("delivery")) {
-//            handleDeliveryReceipt(messaging);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error processing webhook: " + e.getMessage());
         }
     }
 }

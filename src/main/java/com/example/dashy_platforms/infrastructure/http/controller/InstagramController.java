@@ -242,8 +242,6 @@ String recipient_id = message.getRecipient().getId();
         try {
             String attachmentId = instagramService.uploadMediaAndGetAttachmentId(file);
             String mediaType = getMediaType(file.getContentType());
-
-            System.out.println(attachmentId);
             Map<String, Object> response = new HashMap<>();
             response.put("attachmentId", attachmentId);
             response.put("mediaType", mediaType);
