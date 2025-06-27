@@ -5,10 +5,15 @@ import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.Autoaction.AutoactionConfigDTO;
 import com.example.dashy_platforms.domaine.model.Autoaction.AutoactionResponseDTO;
 import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
+import com.example.dashy_platforms.domaine.model.InstagramTemplateRequest;
 import com.example.dashy_platforms.infrastructure.database.entities.Autoaction;
 import com.example.dashy_platforms.infrastructure.database.entities.Company;
+import com.example.dashy_platforms.infrastructure.database.entities.TemplateInstagram;
 import com.example.dashy_platforms.infrastructure.database.repositeries.AutoactionRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.CompanyRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +44,7 @@ public class AutoReplyService {
     private final AutoactionRepository autoactionRepository;
 private final CompanyRepository companyRepository;
 private final InstagramService instagramService;
+private final TemplateService templateService;
 
     @Value("${instagram.graph.api.url}")
     private String graphApiUrl;
@@ -50,48 +56,97 @@ private final InstagramService instagramService;
     private String pageId;
     @Value("${instagram.graph.access.token}")
     private String pageAccessToken;
-public AutoReplyService(AutoactionRepository autoactionRepository, CompanyRepository companyRepository, InstagramService instagramService) {
+public AutoReplyService(AutoactionRepository autoactionRepository,CompanyRepository companyRepository, InstagramService instagramService, TemplateService templateService) {
     this.autoactionRepository = autoactionRepository;
+    this.templateService = templateService;
     this.instagramService = instagramService;
     this.companyRepository = companyRepository;
     this.restTemplate = new RestTemplate();
 }
     public void checkAndReply(String senderId, String message, LocalDateTime receivedAt) {
-        Autoaction autoaction = autoactionRepository.findByCompanyName("ISTIFANO")
+        Autoaction autoaction = autoactionRepository.findByCompanyName("SUPERMARCHE_ABC")
                 .orElseThrow(() -> new RuntimeException("Aucune configuration trouvée"));
-        if (shouldReply(autoaction, receivedAt)) {
-            String replyMessage = buildReplyMessage(autoaction, receivedAt);
 
-            sendReply(senderId, replyMessage);
+        if (shouldReply(autoaction, receivedAt)) {
+            sendAppropriateReply(autoaction, senderId, receivedAt);
         }
     }
-
 
     public boolean shouldReply(Autoaction autoaction, LocalDateTime receivedAt) {
         List<String> nonWorkingDays = Arrays.asList(autoaction.getNonWorkingDays().split(","));
         DayOfWeek currentDay = receivedAt.getDayOfWeek();
+
+        // Check if it's a non-working day
         if (nonWorkingDays.contains(currentDay.name())) {
             return true;
         }
 
         LocalTime currentTime = receivedAt.toLocalTime();
 
-        // Vérifier les heures de pause
+        // Check if during lunch break
         if (isDuringPause(autoaction, currentTime)) {
             return true;
         }
 
-        // Vérifier les heures hors travail
+        // Check if outside working hours
         Company company = autoaction.getCompany();
         return currentTime.isBefore(company.getWorkStartTime()) ||
                 currentTime.isAfter(company.getWorkEndTime());
     }
 
-    private String buildReplyMessage(Autoaction autoaction, LocalDateTime receivedAt) {
+    private void sendAppropriateReply(Autoaction autoaction, String receiverId, LocalDateTime receivedAt) {
+     try {
+            switch (autoaction.getMessageType()) {
+                case "TEMPLATE" -> sendTemplateMessage(autoaction, receiverId);
+
+                case "TEXT" -> {
+                    if (!isPageMessage(receiverId)) {
+                        instagramService.sendTextMessage(receiverId, autoaction.getMessage());
+                    }
+                }
+
+                case "AUTO" -> {
+                    if (!isPageMessage(receiverId)) {
+                        String message = buildTextMessage(autoaction, receivedAt);
+                        instagramService.sendTextMessage(receiverId, message);
+                    }
+                }
+
+                default -> {
+                    throw new IllegalArgumentException("Unknown message type: " + autoaction.getMessageType());
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to send reply message", e);
+        }
+
+    }
+
+
+    private void sendTemplateMessage(Autoaction autoaction, String receiverId) throws JsonProcessingException {
+
+    TemplateInstagram templateInstagram = templateService.getTemplateByCode((String)autoaction.getMessage());
+
+
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        InstagramTemplateRequest templateObject = objectMapper.readValue(
+                templateInstagram.getTemplateContent(),
+                InstagramTemplateRequest.class
+        );
+        if (isPageMessage(receiverId)) {
+            return;
+        }
+        templateObject.getRecipient().setId(receiverId);
+        templateService.sendGenericTemplate(receiverId, templateObject);
+    }
+
+    private String buildTextMessage(Autoaction autoaction, LocalDateTime receivedAt) {
         DayOfWeek day = receivedAt.getDayOfWeek();
         LocalTime currentTime = receivedAt.toLocalTime();
         Company company = autoaction.getCompany();
-
         if (Arrays.asList(autoaction.getNonWorkingDays().split(",")).contains(day.name())) {
             return String.format("Nous sommes fermés le %s. Horaires: %s-%s (%s)",
                     day.getDisplayName(TextStyle.FULL, Locale.FRENCH),
@@ -115,7 +170,10 @@ public AutoReplyService(AutoactionRepository autoactionRepository, CompanyReposi
     }
 
     private String getWorkingDays(Autoaction autoaction) {
-        List<String> allDays = Arrays.asList("MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY");
+        List<String> allDays = Arrays.asList(
+                "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY",
+                "FRIDAY", "SATURDAY", "SUNDAY"
+        );
         List<String> nonWorking = Arrays.asList(autoaction.getNonWorkingDays().split(","));
 
         return allDays.stream()
@@ -123,45 +181,9 @@ public AutoReplyService(AutoactionRepository autoactionRepository, CompanyReposi
                 .map(day -> day.substring(0, 3))
                 .collect(Collectors.joining(","));
     }
+
     private boolean isPageMessage(String fromId) {
         return pageId.equals(fromId);
-    }
-    private void sendReply(String recipientId, String message) {
-
- if (isPageMessage(recipientId)) {
-     return;
- }
-        try {
-
-            final String url = String.format("%s/v22.0/me/messages?access_token=%s",
-                    graphApiUrl,
-                    pageAccessToken);
-            Map<String, Object> request = Map.of(
-                    "recipient", Map.of("id", recipientId),
-                    "message", Map.of("text", message),
-                    "messaging_type", "RESPONSE"
-            );
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(request, headers);
-
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    httpEntity,
-                    Map.class
-            );
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                String messageId = (String) response.getBody().get("message_id");
-            } else {
-                throw new RuntimeException("Failed to send message: " + response.getStatusCode());
-            }
-        } catch (RestClientException e) {
-            throw new RuntimeException("Error sending message to Instagram API", e);
-        }
     }
     @Transactional
     public AutoactionResponseDTO updateAutoactionConfig(AutoactionConfigDTO configDTO) {
@@ -201,7 +223,8 @@ public AutoReplyService(AutoactionRepository autoactionRepository, CompanyReposi
         if (configDTO.getPauseEnd() != null) {
             autoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
         }
-
+            autoaction.setMessageType(configDTO.getMessageType());
+        autoaction.setMessage(configDTO.getMessage());
         autoactionRepository.save(autoaction);
 
         // Build response DTO

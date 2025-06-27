@@ -11,5 +11,7 @@ public class AutoactionConfigDTO {
     private String pauseEnd;
     private String workStartTime;
     private String workEndTime;
+    private String message;
+    private String messageType;
 
 }
