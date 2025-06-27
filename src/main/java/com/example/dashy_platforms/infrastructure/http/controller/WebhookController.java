@@ -38,11 +38,11 @@ public class WebhookController{
         }
         return ResponseEntity.badRequest().body("Missing mode or token");
     }
-    @PostMapping("/webhook")
-    public ResponseEntity<String> receiveWebhook(@RequestBody String payload) {
-        System.out.println("Received webhook payload: " + payload);
-        return ResponseEntity.ok("EVENT_RECEIVED");
-    }
+//    @PostMapping("/webhook")
+//    public ResponseEntity<String> receiveWebhook(@RequestBody String payload) {
+//        System.out.println("Received webhook payload: " + payload);
+//        return ResponseEntity.ok("EVENT_RECEIVED");
+//    }
 
     // Main webhook processing endpoint (POST)
     @PostMapping("/webhook")
