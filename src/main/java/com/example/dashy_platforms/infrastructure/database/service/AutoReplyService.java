@@ -64,7 +64,7 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
     this.restTemplate = new RestTemplate();
 }
     public void checkAndReply(String senderId, String message, LocalDateTime receivedAt) {
-        Autoaction autoaction = autoactionRepository.findByCompanyName("SUPERMARCHE_ABC")
+        Autoaction autoaction = autoactionRepository.findByCompanyName("DASHY")
                 .orElseThrow(() -> new RuntimeException("Aucune configuration trouvée"));
 
         if (shouldReply(autoaction, receivedAt)) {

@@ -3,6 +3,7 @@ package com.example.dashy_platforms.infrastructure.http.controller;
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.Webhook.WebhookPayload;
 import com.example.dashy_platforms.infrastructure.database.service.AutoReplyService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -44,21 +45,20 @@ public class WebhookController{
 //        return ResponseEntity.ok("EVENT_RECEIVED");
 //    }
 
-    // Main webhook processing endpoint (POST)
     @PostMapping("/webhook")
-    public ResponseEntity<String> handleWebhook(
-            @RequestBody(required = false) WebhookPayload payload,
-            @RequestBody(required = false) String rawPayload) {
+    public ResponseEntity<String> handleWebhook(@RequestBody String rawPayload) {
+        System.out.println("Received raw payload: " + rawPayload);
 
         try {
-            if (rawPayload != null) {
-                System.out.println("Received raw payload: " + rawPayload);
-                JsoonFormat jsoonFormat = new JsoonFormat();
-                jsoonFormat.printJson(rawPayload);
+            ObjectMapper objectMapper = new ObjectMapper();
+            WebhookPayload payload = null;
+
+            try {
+                payload = objectMapper.readValue(rawPayload, WebhookPayload.class);
+            } catch (Exception parseException) {
+                System.out.println("Could not parse as structured payload, treating as raw: " + parseException.getMessage());
                 return ResponseEntity.ok("RAW_EVENT_RECEIVED");
             }
-
-            // Handle structured payload
             if (payload != null && payload.getEntry() != null) {
                 payload.getEntry().forEach(entry -> {
                     if (entry.getMessaging() != null) {
@@ -82,7 +82,7 @@ public class WebhookController{
                 return ResponseEntity.ok("WEBHOOK_RECEIVED");
             }
 
-            return ResponseEntity.badRequest().body("No valid payload received");
+            return ResponseEntity.ok("RAW_EVENT_RECEIVED");
 
         } catch (Exception e) {
             e.printStackTrace();
