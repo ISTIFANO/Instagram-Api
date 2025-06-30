@@ -4,7 +4,6 @@ import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.TokenDTOs.InstagramLongLivedTokenResponse;
 import com.example.dashy_platforms.domaine.model.TokenDTOs.InstagramTokenResponse;
 import com.example.dashy_platforms.infrastructure.database.entities.InstagramUserEntity;
-import com.example.dashy_platforms.infrastructure.database.entities.UserEntity;
 import com.example.dashy_platforms.infrastructure.database.repositeries.InstagramUserRepository;
 import com.example.dashy_platforms.infrastructure.http.configuration.InstagramProperties;
 import jakarta.transaction.Transactional;

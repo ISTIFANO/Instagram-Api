@@ -56,6 +56,8 @@ private final TemplateService templateService;
     private String pageId;
     @Value("${instagram.graph.access.token}")
     private String pageAccessToken;
+    @Autowired
+    private MessageServiceImp messageServiceImp;
 public AutoReplyService(AutoactionRepository autoactionRepository,CompanyRepository companyRepository, InstagramService instagramService, TemplateService templateService) {
     this.autoactionRepository = autoactionRepository;
     this.templateService = templateService;
@@ -260,4 +262,15 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
                         String.format("Configuration Autoaction introuvable pour l'entreprise '%s'", companyName)
                 ));
     }
+
+
+    public void markMessageSeenByMid(String senderId, String mid, LocalDateTime seenAt) {
+        System.out.println("✅ [Service] Marking message with ID " + mid + " as seen by user " + senderId + " at " + seenAt);
+        messageServiceImp.markMessageAsSeen(mid);  }
+
+    public void markMessagesSeenUntil(String senderId, LocalDateTime seenUntil) {
+        System.out.println("✅ [Service] Marking all messages from " + senderId + " seen until " + seenUntil);
+        // Ex: messageRepository.markAllBefore(senderId, seenUntil);
+    }
+
 }

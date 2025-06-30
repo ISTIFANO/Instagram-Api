@@ -11,4 +11,7 @@ public interface InstagramUserRepository extends JpaRepository<InstagramUserEnti
     InstagramUserEntity findById(long id);
     @Query("SELECT u FROM InstagramUserEntity u WHERE u.tokenExpiresAt < :expiryDate")
     List<InstagramUserEntity> findTokensExpiringBefore(LocalDateTime expiryDate);
+
+    boolean existsByInstagramUserId(String instagramUserId);
+
 }

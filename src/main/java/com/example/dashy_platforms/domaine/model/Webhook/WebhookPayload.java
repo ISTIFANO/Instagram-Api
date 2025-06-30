@@ -33,6 +33,8 @@ public class WebhookPayload {
         private Sender sender;
         private Recipient recipient;
         private Message message;
+        private Read read;
+        private Reaction reaction;
         private long timestamp;
     }
 
@@ -58,4 +60,23 @@ public class WebhookPayload {
         private String mid;
         private String text;
     }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class Read {
+        private String mid;
+        private Long watermark;
+
+    }
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Reaction {
+        private String mid;
+        private String reaction;
+        private String action;
+    }
+
 }

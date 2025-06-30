@@ -14,6 +14,10 @@ public class CompanyService {
         return companyRepository.findByNameWithAutoactions(companyName)
                 .orElseThrow(() -> new RuntimeException("Company not found"));
     }
+    public Company getCompanyByname(String companyName) {
+        return companyRepository.findByNameWithAutoactions(companyName)
+                .orElseThrow(() -> new RuntimeException("Company not found"));
+    }
 
     public Company createCompany(Company company) {
         if (companyRepository.existsByName(company.getName())) {
