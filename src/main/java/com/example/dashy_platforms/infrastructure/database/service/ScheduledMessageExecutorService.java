@@ -12,6 +12,7 @@ import com.example.dashy_platforms.domaine.model.ScheduleMessage.TemplateSchedul
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
+import com.example.dashy_platforms.domaine.service.IScheduledMessageExecutorService;
 import com.example.dashy_platforms.domaine.service.ITemplateService;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
@@ -30,7 +31,7 @@ import java.util.List;
 @Transactional
 @Service
 @Slf4j
-public class ScheduledMessageExecutorService implements IMessageSchedulerService.IScheduledMessageExecutorService {
+public class ScheduledMessageExecutorService implements IScheduledMessageExecutorService {
     private final ScheduledMessageRepository scheduledMessageRepository;
     private final IInstagramService instagramService;
     private final MessageSchedulerService schedulerService;
@@ -46,7 +47,7 @@ private final ITemplateService templateService;
         this.schedulerService = schedulerService;
         this.templateService = templateService;
     }
-
+@Override
     @Scheduled(fixedRate = 60000)
     public void executeScheduledMessages() {
         LocalDateTime now = LocalDateTime.now();

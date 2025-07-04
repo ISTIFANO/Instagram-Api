@@ -1,6 +1,11 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
 import com.example.dashy_platforms.domaine.model.Webhook.WebhookPayload;
+import com.example.dashy_platforms.domaine.service.AutoActionConfigService;
+import com.example.dashy_platforms.domaine.service.IInstagramService;
+import com.example.dashy_platforms.domaine.service.IUserInstagram;
+import com.example.dashy_platforms.domaine.service.InstagramUserService;
+import com.example.dashy_platforms.infrastructure.database.service.AutoActionConfigServiceImpl;
 import com.example.dashy_platforms.infrastructure.database.service.AutoReplyService;
 import com.example.dashy_platforms.infrastructure.database.service.MessageServiceImp;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,7 +31,12 @@ public class WebhookController {
 
     @Autowired
     private AutoReplyService autoReplyService;
-
+    @Autowired
+    private IUserInstagram userInstagram;
+    @Autowired
+    private InstagramUserService instagramUserService;
+    @Autowired
+    private AutoActionConfigServiceImpl autoActionConfigService;
     @GetMapping("/webhook")
     public ResponseEntity<String> verifyWebhook(
             @RequestParam(name = "hub.mode", required = false) String mode,
@@ -70,11 +80,16 @@ public class WebhookController {
 
                                 // Save sender as user if needed
                                 if (senderId != null) {
-                                    messageService.saveInstagramUserIfNotExists(senderId);
+                                    if (instagramUserService.findByInstagramUserId(senderId) == null) {
+                                        this.autoActionConfigService.sendTextMessage(senderId);
+                                    }
+                                    userInstagram.saveInstagramUserIfNotExists(senderId);
                                 }
 
                                 // Handle "read" (seen) messages
                                 if (msg.getRead() != null && msg.getRead().getMid() != null) {
+
+
                                     String mid = msg.getRead().getMid();
                                     messageService.updateMessageStatus(mid, "SEEN");
                                     System.out.println("👁️ Message seen (mid: " + mid + ")");
@@ -95,7 +110,9 @@ public class WebhookController {
                                 }
 
                                 if (msg.getMessage() != null && msg.getMessage().getText() != null) {
+
                                     String text = msg.getMessage().getText();
+                                    autoReplyService.ProcessSendingAutoReplay(senderId, text, eventTime);
                                     String mid = msg.getMessage().getMid();
                                     messageService.saveIncomingMessage(senderId, recipientId, text, "TEXT", eventTime,mid);
                                     System.out.println("📩 Message from " + senderId + ": " + text);
@@ -120,4 +137,5 @@ public class WebhookController {
                     .body("Error processing webhook: " + e.getMessage());
         }
     }
+
 }

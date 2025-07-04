@@ -1,50 +1,57 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
-import ch.qos.logback.classic.Logger;
 import com.example.dashy_platforms.domaine.helper.JsoonFormat;
+import com.example.dashy_platforms.domaine.model.*;
 import com.example.dashy_platforms.domaine.model.Autoaction.AutoactionConfigDTO;
 import com.example.dashy_platforms.domaine.model.Autoaction.AutoactionResponseDTO;
-import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
-import com.example.dashy_platforms.domaine.model.InstagramTemplateRequest;
-import com.example.dashy_platforms.infrastructure.database.entities.Autoaction;
-import com.example.dashy_platforms.infrastructure.database.entities.Company;
-import com.example.dashy_platforms.infrastructure.database.entities.TemplateInstagram;
+import com.example.dashy_platforms.domaine.model.Autoaction.ConversationAutoActionDTO;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.InstagramMessageR;
+import com.example.dashy_platforms.domaine.model.BroadcastMessage.MessageTemplate;
+import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
+import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
+import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
+import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
+import com.example.dashy_platforms.infrastructure.database.entities.*;
 import com.example.dashy_platforms.infrastructure.database.repositeries.AutoactionRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.CompanyRepository;
+import com.example.dashy_platforms.infrastructure.database.repositeries.ConversationAutoActionRepository;
+import com.example.dashy_platforms.infrastructure.database.repositeries.MessageAutoActionRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.TextStyle;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+
 public class AutoReplyService {
 
     private final AutoactionRepository autoactionRepository;
-private final CompanyRepository companyRepository;
-private final InstagramService instagramService;
-private final TemplateService templateService;
+    private final CompanyRepository companyRepository;
+    private final InstagramService instagramService;
+    private final TemplateService templateService;
+    private final MessageAutoActionRepository messageAutoActionRepository;
+    private final ConversationAutoActionRepository conversationAutoActionRepository;
+    private final MessageServiceImp instagramMessagingService;
+
 
     @Value("${instagram.graph.api.url}")
     private String graphApiUrl;
@@ -58,13 +65,18 @@ private final TemplateService templateService;
     private String pageAccessToken;
     @Autowired
     private MessageServiceImp messageServiceImp;
-public AutoReplyService(AutoactionRepository autoactionRepository,CompanyRepository companyRepository, InstagramService instagramService, TemplateService templateService) {
-    this.autoactionRepository = autoactionRepository;
-    this.templateService = templateService;
-    this.instagramService = instagramService;
-    this.companyRepository = companyRepository;
-    this.restTemplate = new RestTemplate();
-}
+
+    public AutoReplyService(AutoactionRepository autoactionRepository, ConversationAutoActionRepository conversationAutoActionRepository, MessageServiceImp messageService,MessageAutoActionRepository messageAutoActionRepository,CompanyRepository companyRepository, InstagramService instagramService, TemplateService templateService) {
+        this.autoactionRepository = autoactionRepository;
+        this.templateService = templateService;
+        this.instagramService = instagramService;
+        this.conversationAutoActionRepository = conversationAutoActionRepository;
+        this.messageAutoActionRepository = messageAutoActionRepository;
+        this.instagramMessagingService = messageService;
+        this.companyRepository = companyRepository;
+        this.restTemplate = new RestTemplate();
+    }
+
     public void checkAndReply(String senderId, String message, LocalDateTime receivedAt) {
         Autoaction autoaction = autoactionRepository.findByCompanyName("DASHY")
                 .orElseThrow(() -> new RuntimeException("Aucune configuration trouvée"));
@@ -97,7 +109,7 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
     }
 
     private void sendAppropriateReply(Autoaction autoaction, String receiverId, LocalDateTime receivedAt) {
-     try {
+        try {
             switch (autoaction.getMessageType()) {
                 case "TEMPLATE" -> sendTemplateMessage(autoaction, receiverId);
 
@@ -127,8 +139,7 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
 
     private void sendTemplateMessage(Autoaction autoaction, String receiverId) throws JsonProcessingException {
 
-    TemplateInstagram templateInstagram = templateService.getTemplateByCode((String)autoaction.getMessage());
-
+        TemplateInstagram templateInstagram = templateService.getTemplateByCode((String) autoaction.getMessage());
 
 
         ObjectMapper objectMapper = new ObjectMapper();
@@ -187,22 +198,23 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
     private boolean isPageMessage(String fromId) {
         return pageId.equals(fromId);
     }
+
     @Transactional
     public AutoactionResponseDTO updateAutoactionConfig(AutoactionConfigDTO configDTO) {
 
         Company company = companyRepository.findCompanyByName(configDTO.getCompanyName())
                 .orElseGet(() -> {
-            Company newCompany = new Company();
-            newCompany.setName(configDTO.getCompanyName());
-            newCompany.setWorkStartTime(LocalTime.parse(configDTO.getWorkStartTime()));
-            newCompany.setWorkEndTime(LocalTime.parse(configDTO.getWorkEndTime()));
-            Autoaction newAutoaction = new Autoaction();
-            newAutoaction.setCompany(newCompany);
-            newAutoaction.setPauseStart(LocalTime.parse(configDTO.getPauseStart()));
-            newAutoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
-            newAutoaction.setNonWorkingDays(configDTO.getNonWorkingDays().toString());
+                    Company newCompany = new Company();
+                    newCompany.setName(configDTO.getCompanyName());
+                    newCompany.setWorkStartTime(LocalTime.parse(configDTO.getWorkStartTime()));
+                    newCompany.setWorkEndTime(LocalTime.parse(configDTO.getWorkEndTime()));
+                    Autoaction newAutoaction = new Autoaction();
+                    newAutoaction.setCompany(newCompany);
+                    newAutoaction.setPauseStart(LocalTime.parse(configDTO.getPauseStart()));
+                    newAutoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
+                    newAutoaction.setNonWorkingDays(configDTO.getNonWorkingDays().toString());
                     return companyRepository.save(newCompany);
-        });
+                });
 
         // Update work hours
         if (configDTO.getWorkStartTime() != null) {
@@ -225,7 +237,7 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
         if (configDTO.getPauseEnd() != null) {
             autoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
         }
-            autoaction.setMessageType(configDTO.getMessageType());
+        autoaction.setMessageType(configDTO.getMessageType());
         autoaction.setMessage(configDTO.getMessage());
         autoactionRepository.save(autoaction);
 
@@ -256,6 +268,7 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
 
         return dto;
     }
+
     public Autoaction getAutoaction(String companyName) {
         return autoactionRepository.findByCompanyName(companyName)
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -266,11 +279,126 @@ public AutoReplyService(AutoactionRepository autoactionRepository,CompanyReposit
 
     public void markMessageSeenByMid(String senderId, String mid, LocalDateTime seenAt) {
         System.out.println("✅ [Service] Marking message with ID " + mid + " as seen by user " + senderId + " at " + seenAt);
-        messageServiceImp.markMessageAsSeen(mid);  }
+        messageServiceImp.markMessageAsSeen(mid);
+    }
 
     public void markMessagesSeenUntil(String senderId, LocalDateTime seenUntil) {
         System.out.println("✅ [Service] Marking all messages from " + senderId + " seen until " + seenUntil);
         // Ex: messageRepository.markAllBefore(senderId, seenUntil);
     }
+
+
+        public void ProcessSendingAutoReplay(String senderId, String messageText, LocalDateTime eventTime) {
+            try {
+
+
+                String companyId = "11";
+
+                if (companyId != null) {
+                    List<ConversationAutoAction> matchingActions = findMatchingActions(messageText, Long.valueOf(companyId));
+                    if (!matchingActions.isEmpty()) {
+                        matchingActions.sort(Comparator.comparing(ConversationAutoAction::getPriority).reversed());
+                        ConversationAutoAction actionToExecute = matchingActions.get(0);
+
+                        executeAutoResponse(actionToExecute, senderId, companyId.toString());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error processing auto-reply for message from {}", senderId, e);
+            }
+        }
+
+
+        private List<ConversationAutoAction> findMatchingActions(String messageText, Long companyId) {
+            List<MessageAutoAction> allTriggers = messageAutoActionRepository
+                    .findByConversationAutoActionCompanyIdAndConversationAutoActionStatus(
+                            companyId, ConversationAutoAction.ActionStatus.ACTIVE);
+
+            return allTriggers.stream()
+                    .filter(trigger -> matchesKeyword(messageText, trigger))
+                    .map(MessageAutoAction::getConversationAutoAction)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
+
+        private boolean matchesKeyword(String messageText, MessageAutoAction trigger) {
+            String keyword = trigger.getTriggerKeyword();
+            String textToMatch = trigger.getCaseSensitive() ? messageText : messageText.toLowerCase();
+            String keywordToMatch = trigger.getCaseSensitive() ? keyword : keyword.toLowerCase();
+
+            switch (trigger.getMatchType()) {
+                case EXACT:
+                    return textToMatch.equals(keywordToMatch);
+                case CONTAINS:
+                    return textToMatch.contains(keywordToMatch);
+                case STARTS_WITH:
+                    return textToMatch.startsWith(keywordToMatch);
+                case ENDS_WITH:
+                    return textToMatch.endsWith(keywordToMatch);
+                default:
+                    return false;
+            }
+        }
+
+        private void executeAutoResponse(ConversationAutoAction action, String recipientId, String companyId) {
+            try {
+                switch (action.getMessageType()) {
+                    case "TEXT":
+                        if (action == null || recipientId == null || recipientId.isEmpty()) {
+                            throw new IllegalArgumentException("Invalid arguments for auto-response");
+                        }
+                        InstagramMessageRequest messageRequest = new InstagramMessageRequest();
+
+                        if (messageRequest.getRecipient() == null) {
+                            messageRequest.setRecipient(new Recipient());
+                        }
+                        if (messageRequest.getMessage() == null) {
+                            messageRequest.setMessage(new MessageDto());
+                        }
+
+                        messageRequest.getMessage().setText(action.getResponseMessage());
+                        messageRequest.getRecipient().setId(recipientId);
+                        instagramService.sendTextMessage(messageRequest);
+
+
+                        break;
+
+                    case "TEMPLATE":
+                        InstagramTemplateRequest templateData = this.templateService.getTemplateDataByCode(action.getResponseMessage());
+                        templateData.getRecipient().setId(recipientId);
+                        this.templateService.sendGenericTemplate(recipientId ,templateData);
+                        break;
+//                    case "QUICK_REPLY":
+//                        ModelMapper modelMapper = new ModelMapper();
+//                        InstagramMessageR quickReplyJson = this.templateService.getQuick_replies(action.getResponseMessage());
+//
+//                        Quick_replies_Request quickRepliesRequest = modelMapper.map(quickReplyJson, Quick_replies_Request.class);
+//
+//                        JsoonFormat jsoonFormat = new JsoonFormat();
+//                        jsoonFormat.printJson(quickRepliesRequest);
+//                        quickRepliesRequest.getRecipient().setId(recipientId);
+//                        this.templateService.sendQuick_repliesTemplate(quickRepliesRequest);
+//
+//
+//                    break;
+//                    case "TEMPLATE_BUTTON":
+//                        InstagramButtonTemplateRequest template_button = this.templateService.getTemplatebutton(action.getResponseMessage());
+//
+//                        this.templateService.sendButtonTemplateToAllActiveUsers(template_button);
+//
+//                        break;
+                    default:
+                        log.warn("Type de message non reconnu: {}", action.getMessageType());
+                }
+
+
+
+                log.info("Auto-response sent to {} for action ID: {}", recipientId, action.getId() );
+
+            } catch (Exception e) {
+                log.error("Failed to execute auto-response for action ID: {}", action.getId(), e);
+            }
+        }
+
 
 }

@@ -1,41 +1,29 @@
 package com.example.dashy_platforms.infrastructure.database.service;
 
-import com.example.dashy_platforms.infrastructure.database.entities.Company;
-import com.example.dashy_platforms.infrastructure.database.entities.InstagramUserEntity;
-import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
+import com.example.dashy_platforms.domaine.service.IMessage;
+import com.example.dashy_platforms.infrastructure.database.entities.*;
 import com.example.dashy_platforms.infrastructure.database.repositeries.InstagramUserRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
 
-public class MessageServiceImp {
+public class MessageServiceImp implements IMessage {
     @Autowired
-    CompanyService companyService;
+   private CompanyService companyService;
     @Autowired
     private InstagramUserRepository instagramUserRepository;
     @Autowired
     private MessageRepository messageRepository;
 
-    public void saveInstagramUserIfNotExists(String instagramUserId) {
-        if (!instagramUserRepository.existsByInstagramUserId(instagramUserId)) {
-            InstagramUserEntity user = new InstagramUserEntity();
-            user.setInstagramUserId(instagramUserId);
-            user.setStatus(InstagramUserEntity.InstagramUserStatus.ACTIVE);
-            Company company = companyService.getCompanyByname("DASHY");
-            if (company == null) {
-                throw new RuntimeException("❌ Company not found. Cannot save message.");
-            }
 
-            user.setCompany(company);
-            instagramUserRepository.save(user);
-            System.out.println("🆕 New Instagram user saved: " + instagramUserId);
-        }
-    }
+
+@Override
     public void markMessageAsSeen(String mid) {
         Optional<MessageEntity> optionalMessage = messageRepository.findByMessageId(mid);
         if (optionalMessage.isPresent()) {
@@ -48,7 +36,7 @@ public class MessageServiceImp {
         }
     }
 
-
+    @Override
     public void saveIncomingMessage(String senderId,String recipientId, String content, String type, LocalDateTime sentAt ,String mid) {
         MessageEntity message = new MessageEntity();
         message.setSenderId(senderId);
@@ -69,7 +57,7 @@ public class MessageServiceImp {
         messageRepository.save(message);
         System.out.println("💾 Message saved from " + senderId);
     }
-
+    @Override
     public void updateMessageStatus(String messageId, String status) {
         Optional<MessageEntity> optional = messageRepository.findByMessageId(messageId);
         if (optional.isPresent()) {
@@ -90,6 +78,5 @@ public class MessageServiceImp {
             System.out.println("⚠️ Message not found for reaction (mid: " + mid + ")");
         }
     }
-
 
 }

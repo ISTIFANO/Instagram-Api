@@ -18,6 +18,8 @@ public interface MessageRepository extends JpaRepository<MessageEntity, Long> {
     @Query("SELECT im FROM MessageEntity im WHERE im.status = 'PENDING' ORDER BY im.createdAt ASC")
     List<MessageEntity> findPendingMessages();
 
+
+
     @Query("SELECT m FROM MessageEntity m WHERE m.messageContent = :message_content")
     Optional<MessageEntity> findByMessageContent(@Param("message_content") String messageContent);
 
