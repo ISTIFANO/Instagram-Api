@@ -15,7 +15,7 @@ public class ElementModel {
         private String title;
 
         @JsonProperty("image_url")
-        private String imageUrl;
+        private String image_url;
 
         @JsonProperty("subtitle")
         private String subtitle;
@@ -26,5 +26,10 @@ public class ElementModel {
         @JsonProperty("buttons")
         private List<TemplateButton> buttons;
 
-
+        public String getImage_url() {
+                return image_url;
+        }
+        public void setImage_url(String image_url) {
+                this.image_url = image_url;
+        }
 }
