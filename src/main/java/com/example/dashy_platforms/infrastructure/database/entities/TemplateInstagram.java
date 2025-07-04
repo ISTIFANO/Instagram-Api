@@ -1,13 +1,18 @@
 package com.example.dashy_platforms.infrastructure.database.entities;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "template_instagram")
 @Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@AllArgsConstructor
+@NoArgsConstructor
 public class TemplateInstagram {
 
     @Id
@@ -36,8 +41,6 @@ public class TemplateInstagram {
     @Column(name = "active")
     private Boolean active = true;
 
-    @Column(name = "company_id")
-    private String companyId;
 
     @Column(name = "recipient_id")
     private String recipientId;
@@ -47,6 +50,8 @@ public class TemplateInstagram {
 
     @Column(name = "product_id")
     private Long productId;
+    @Column(name = "company_id")
+    private Long companyId;
 
     @Column(name = "template_type")
     private String templateType ="GENERIC";
@@ -57,6 +62,9 @@ public class TemplateInstagram {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entreprise_id", nullable = true)
+    private Company company;
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

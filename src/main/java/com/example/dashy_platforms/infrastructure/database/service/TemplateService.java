@@ -9,6 +9,7 @@ import com.example.dashy_platforms.domaine.model.Template.Button_Template.Instag
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
 import com.example.dashy_platforms.domaine.service.IInstagramService;
 import com.example.dashy_platforms.domaine.service.ITemplateService;
+import com.example.dashy_platforms.infrastructure.database.entities.Company;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.TemplateInstagram;
 import com.example.dashy_platforms.infrastructure.database.repositeries.MessageRepository;
@@ -53,6 +54,9 @@ public class TemplateService implements ITemplateService {
     private TemplateRepository templateRepository;
     @Autowired
     private MessageRepository messageRepository;
+
+    @Autowired
+    private CompanyService companyService;
     @Autowired
     private IInstagramService instagramService;
 
@@ -101,7 +105,9 @@ public class TemplateService implements ITemplateService {
                 dbMessage.setName(templateData.getMessage().getAttachment().getPayload().getElements().get(0).getSubtitle());
                 dbMessage.setRecipientId(templateData.getRecipient().getId());
                 // ajouter api pour recupirer le CompanyId
-                dbMessage.setCompanyId("1946986879374368");
+                Company company = companyService.getCompanyByname("DASHY");
+
+                dbMessage.setCompany(company);
                 dbMessage.setStatus("SENT");
                 dbMessage.setTemplateType("generic");
                 dbMessage.setCode(generateUniqueTemplateCode());
@@ -152,8 +158,9 @@ public class TemplateService implements ITemplateService {
                 dbMessage.setName(templateRequest.getMessage().getAttachment().getPayload().getElements().get(0).getTitle());
                 dbMessage.setRecipientId(templateRequest.getRecipient().getId());
                 // ajouter api pour recupirer le CompanyId
-                dbMessage.setCompanyId("1946986879374368");
-                dbMessage.setStatus("SENT");
+           Company company = companyService.getCompanyByname("DASHY");
+
+                dbMessage.setCompany(company); dbMessage.setStatus("SENT");
                 dbMessage.setTemplateType("button");
                 dbMessage.setCode(generateUniqueTemplateCode());
                 dbMessage.setCreatedAt(LocalDateTime.now());
@@ -204,7 +211,9 @@ public class TemplateService implements ITemplateService {
                 dbMessage.setRecipientId(quickReplies.getRecipient().getId());
                 // ajouter api pour recupirer le CompanyId
 
-                dbMessage.setCompanyId("1946986879374368");
+           Company company = companyService.getCompanyByname("DASHY");
+
+                dbMessage.setCompany(company);
                 dbMessage.setStatus("SENT");
                 dbMessage.setLang("fr");
                 dbMessage.setTemplateType("quick_replies");
@@ -293,7 +302,9 @@ public class TemplateService implements ITemplateService {
                     dbMessage.setLang("fr");
                     dbMessage.setName(templateRequest.getMessage().getAttachment().getPayload().getElements().get(0).getTitle());
                     dbMessage.setRecipientId(templateRequest.getRecipient().getId());
-                    dbMessage.setCompanyId("1946986879374368");
+           Company company = companyService.getCompanyByname("DASHY");
+
+                dbMessage.setCompany(company);
                     dbMessage.setStatus("SENT");
                     dbMessage.setTemplateType("button");
                     dbMessage.setCode(generateUniqueTemplateCode());
@@ -316,7 +327,9 @@ public class TemplateService implements ITemplateService {
                 dbMessage.setLang("fr");
                 dbMessage.setName(templateRequest.getMessage().getAttachment().getPayload().getElements().get(0).getTitle());
                 dbMessage.setRecipientId(templateRequest.getRecipient().getId());
-                dbMessage.setCompanyId("1946986879374368");
+           Company company = companyService.getCompanyByname("DASHY");
+
+                dbMessage.setCompany(company);
                 dbMessage.setStatus("FAILED");
                 dbMessage.setTemplateType("button");
                 dbMessage.setCode(generateUniqueTemplateCode());

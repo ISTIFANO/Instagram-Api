@@ -2,6 +2,7 @@ package com.example.dashy_platforms.infrastructure.database.entities;
 
 import com.example.dashy_platforms.domaine.enums.IntervalUnit;
 import com.example.dashy_platforms.domaine.enums.ScheduleType;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Table(name = "scheduled_messages")
 public class ScheduledMessageEntity {
 
@@ -75,4 +77,9 @@ public class ScheduledMessageEntity {
 
     @Column(name = "execution_count", nullable = false)
     private Integer executionCount = 0;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id", nullable = true)
+    private Company company;
+
 }

@@ -1,10 +1,11 @@
 package com.example.dashy_platforms.domaine.model.MessageSeen;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
+
 @Getter
 @Setter
 @ToString
+@AllArgsConstructor
+@NoArgsConstructor
 public class InstagramReadReceipt {
     private String mid;
 

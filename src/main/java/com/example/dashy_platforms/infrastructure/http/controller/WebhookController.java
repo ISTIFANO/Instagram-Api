@@ -1,8 +1,14 @@
 package com.example.dashy_platforms.infrastructure.http.controller;
 
-import com.example.dashy_platforms.domaine.helper.JsoonFormat;
 import com.example.dashy_platforms.domaine.model.Webhook.WebhookPayload;
+import com.example.dashy_platforms.domaine.service.AutoActionConfigService;
+import com.example.dashy_platforms.domaine.service.IInstagramService;
+import com.example.dashy_platforms.domaine.service.IUserInstagram;
+import com.example.dashy_platforms.domaine.service.InstagramUserService;
+import com.example.dashy_platforms.infrastructure.database.service.AutoActionConfigServiceImpl;
 import com.example.dashy_platforms.infrastructure.database.service.AutoReplyService;
+import com.example.dashy_platforms.infrastructure.database.service.MessageServiceImp;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -15,15 +21,22 @@ import java.time.ZoneId;
 
 @RestController
 @RequestMapping("/api/instagram")
-public class WebhookController{
+public class WebhookController {
 
     @Value("${instagram.graph.access.token:default-value}")
     private String accessToken;
 
     @Autowired
-    private AutoReplyService autoReplyService;
+    private MessageServiceImp messageService;
 
-    // Verification endpoint (GET)
+    @Autowired
+    private AutoReplyService autoReplyService;
+    @Autowired
+    private IUserInstagram userInstagram;
+    @Autowired
+    private InstagramUserService instagramUserService;
+    @Autowired
+    private AutoActionConfigServiceImpl autoActionConfigService;
     @GetMapping("/webhook")
     public ResponseEntity<String> verifyWebhook(
             @RequestParam(name = "hub.mode", required = false) String mode,
@@ -31,49 +44,83 @@ public class WebhookController{
             @RequestParam(name = "hub.verify_token", required = false) String token) {
 
         if (mode != null && token != null) {
-            if (mode.equals("subscribe") && token.equals(accessToken)) {
+            if ("subscribe".equals(mode) && accessToken.equals(token)) {
                 return ResponseEntity.ok(challenge);
             }
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Verification token mismatch");
         }
         return ResponseEntity.badRequest().body("Missing mode or token");
     }
-//    @PostMapping("/webhook")
-//    public ResponseEntity<String> receiveWebhook(@RequestBody String payload) {
-//        System.out.println("Received webhook payload: " + payload);
-//        return ResponseEntity.ok("EVENT_RECEIVED");
-//    }
 
-    // Main webhook processing endpoint (POST)
     @PostMapping("/webhook")
-    public ResponseEntity<String> handleWebhook(
-            @RequestBody(required = false) WebhookPayload payload,
-            @RequestBody(required = false) String rawPayload) {
+    public ResponseEntity<String> handleWebhook(@RequestBody String rawPayload) {
+        System.out.println("📦 Received raw payload: " + rawPayload);
 
         try {
-            if (rawPayload != null) {
-                System.out.println("Received raw payload: " + rawPayload);
-                JsoonFormat jsoonFormat = new JsoonFormat();
-                jsoonFormat.printJson(rawPayload);
+            ObjectMapper objectMapper = new ObjectMapper();
+            WebhookPayload payload;
+
+            try {
+                payload = objectMapper.readValue(rawPayload, WebhookPayload.class);
+            } catch (Exception parseException) {
+                System.out.println("⚠️ Could not parse as structured payload: " + parseException.getMessage());
                 return ResponseEntity.ok("RAW_EVENT_RECEIVED");
             }
 
-            // Handle structured payload
             if (payload != null && payload.getEntry() != null) {
                 payload.getEntry().forEach(entry -> {
                     if (entry.getMessaging() != null) {
                         entry.getMessaging().forEach(msg -> {
                             try {
-                                if (msg != null && msg.getSender() != null && msg.getMessage() != null) {
-                                    String senderId = msg.getSender().getId();
-                                    String text = msg.getMessage().getText();
-                                    LocalDateTime receivedAt = Instant.ofEpochMilli(msg.getTimestamp())
+                                String senderId = msg.getSender() != null ? msg.getSender().getId() : null;
+                                String recipientId = msg.getRecipient() != null ? msg.getRecipient().getId() : null;
+                                LocalDateTime eventTime = Instant.ofEpochMilli(msg.getTimestamp())
+                                        .atZone(ZoneId.of("Africa/Casablanca"))
+                                        .toLocalDateTime();
+
+                                // Save sender as user if needed
+                                if (senderId != null) {
+                                    if (instagramUserService.findByInstagramUserId(senderId) == null) {
+                                        this.autoActionConfigService.sendTextMessage(senderId);
+                                    }
+                                    userInstagram.saveInstagramUserIfNotExists(senderId);
+                                }
+
+                                // Handle "read" (seen) messages
+                                if (msg.getRead() != null && msg.getRead().getMid() != null) {
+
+
+                                    String mid = msg.getRead().getMid();
+                                    messageService.updateMessageStatus(mid, "SEEN");
+                                    System.out.println("👁️ Message seen (mid: " + mid + ")");
+                                    autoReplyService.markMessageSeenByMid(senderId, mid, eventTime);
+                                } else if (msg.getRead() != null && msg.getRead().getWatermark() != null) {
+                                    LocalDateTime seenUntil = Instant.ofEpochMilli(msg.getRead().getWatermark())
                                             .atZone(ZoneId.of("Africa/Casablanca"))
                                             .toLocalDateTime();
-                                    autoReplyService.checkAndReply(senderId, text, receivedAt);
+                                    System.out.println("👁 All messages seen by " + senderId + " until " + seenUntil);
+                                    autoReplyService.markMessagesSeenUntil(senderId, seenUntil);
                                 }
+                                if (msg.getReaction() != null) {
+                                    String mid = msg.getReaction().getMid();
+                                    String reactionType = msg.getReaction().getReaction();
+                                    System.out.println("❤️ Reaction received: " + reactionType + " on message " + mid);
+
+                                    messageService.addReactionToMessage(mid, reactionType);
+                                }
+
+                                if (msg.getMessage() != null && msg.getMessage().getText() != null) {
+
+                                    String text = msg.getMessage().getText();
+                                    autoReplyService.ProcessSendingAutoReplay(senderId, text, eventTime);
+                                    String mid = msg.getMessage().getMid();
+                                    messageService.saveIncomingMessage(senderId, recipientId, text, "TEXT", eventTime,mid);
+                                    System.out.println("📩 Message from " + senderId + ": " + text);
+                                    autoReplyService.checkAndReply(senderId, text, eventTime);
+                                }
+
                             } catch (Exception e) {
-                                System.err.println("Error processing individual message: " + e.getMessage());
+                                System.err.println("❌ Error processing individual message: " + e.getMessage());
                                 e.printStackTrace();
                             }
                         });
@@ -82,7 +129,7 @@ public class WebhookController{
                 return ResponseEntity.ok("WEBHOOK_RECEIVED");
             }
 
-            return ResponseEntity.badRequest().body("No valid payload received");
+            return ResponseEntity.ok("RAW_EVENT_RECEIVED");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -90,4 +137,5 @@ public class WebhookController{
                     .body("Error processing webhook: " + e.getMessage());
         }
     }
+
 }
