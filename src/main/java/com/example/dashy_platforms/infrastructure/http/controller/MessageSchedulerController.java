@@ -55,7 +55,18 @@ public class MessageSchedulerController {
             return ResponseEntity.badRequest().build();
         }
     }
+    @PostMapping("schedule-birthday")
+    public ResponseEntity<?> create(@RequestBody ScheduleMessageRequest message) {
+        try {
 
+            JsoonFormat jsoonFormat = new JsoonFormat();
+            jsoonFormat.printJson(message);
+            ScheduledMessageEntity saved = schedulerService.saveScheduledMessage(message);
+            return ResponseEntity.ok(saved);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 
     @PutMapping("/schedule/{id}/stop")
     public ResponseEntity<?> stopScheduledMessage(@PathVariable Long id) {

@@ -10,21 +10,22 @@ import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageReq
 import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
 import com.example.dashy_platforms.domaine.model.ScheduleMessage.TemplateScheduler;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
-import com.example.dashy_platforms.domaine.service.IInstagramService;
-import com.example.dashy_platforms.domaine.service.IMessageSchedulerService;
-import com.example.dashy_platforms.domaine.service.IScheduledMessageExecutorService;
-import com.example.dashy_platforms.domaine.service.ITemplateService;
+import com.example.dashy_platforms.domaine.service.*;
+import com.example.dashy_platforms.infrastructure.database.entities.InstagramUserEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.ScheduledMessageEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.TemplateInstagram;
+import com.example.dashy_platforms.infrastructure.database.repositeries.InstagramUserRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.ScheduledMessageRepository;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,17 +36,22 @@ public class ScheduledMessageExecutorService implements IScheduledMessageExecuto
     private final ScheduledMessageRepository scheduledMessageRepository;
     private final IInstagramService instagramService;
     private final MessageSchedulerService schedulerService;
+    private final InstagramUserService instagramUserService;
 private final ITemplateService templateService;
+    private final InstagramUserRepository instagramUserRepository;
+
     public ScheduledMessageExecutorService(
             ScheduledMessageRepository scheduledMessageRepository,
             IInstagramService instagramMessageService,
-            MessageSchedulerService schedulerService, ITemplateService templateService
-
-    ) {
+            MessageSchedulerService schedulerService,
+            ITemplateService templateService,InstagramUserService instagramUserService,
+            InstagramUserRepository instagramUserRepository) {
         this.scheduledMessageRepository = scheduledMessageRepository;
         this.instagramService = instagramMessageService;
         this.schedulerService = schedulerService;
         this.templateService = templateService;
+        this.instagramUserService = instagramUserService;
+        this.instagramUserRepository = instagramUserRepository;
     }
 @Override
     @Scheduled(fixedRate = 60000)
@@ -56,6 +62,10 @@ private final ITemplateService templateService;
 
         for (ScheduledMessageEntity scheduledMessage : messagesToSend) {
             try {
+
+                if ("BIRTHDAY".equals(scheduledMessage.getSchedule_sending_date_type())) {
+                    return ;
+                }
                 switch (scheduledMessage.getMessagetype()) {
                     case "TEXT":
                         this.instagramService.sendTextToAllActiveUsers(scheduledMessage.getMessageContent());
@@ -143,6 +153,44 @@ private final ITemplateService templateService;
             }
         }
     }
+
+    @Scheduled(fixedRate = 86400000) // Run every 24 hours
+    public void shouldhappybirthday() {
+        LocalDate today = LocalDate.now();
+        int day = today.getDayOfMonth();
+        int month = today.getMonthValue();
+
+        List<ScheduledMessageEntity> messagesToSend = scheduledMessageRepository.findActiveBirthdayMessages();
+        List<InstagramUserEntity> users = instagramUserRepository.findAll().stream()
+                .filter(user -> {
+                    try {
+                        LocalDate birthday = LocalDate.parse(user.getBirthday());
+                        return birthday.getDayOfMonth() == day && birthday.getMonthValue() == month;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }).toList();
+        for (ScheduledMessageEntity scheduledMessage : messagesToSend) {
+            for (InstagramUserEntity user : users) {
+                scheduledMessage.setRecipientId(user.getInstagramUserId());
+                switch (scheduledMessage.getMessagetype()) {
+                    case "TEXT" -> {
+                        InstagramMessageRequest instagramMessageRequest = new InstagramMessageRequest();
+                        instagramMessageRequest.getRecipient().setId(user.getInstagramUserId());
+                        instagramMessageRequest.getMessage().setText(scheduledMessage.getMessageContent());
+
+                        instagramService.sendTextMessage(instagramMessageRequest);
+                    }
+                    case "TEMPLATE" -> {
+                        InstagramTemplateRequest templateData = this.templateService.getTemplateDataByCode(scheduledMessage.getMessageContent());
+                        templateData.getRecipient().setId(user.getInstagramUserId());
+                        instagramService.sendGenericTemplate(user.getInstagramUserId(), templateData);
+                    }
+                }
+            }
+        }
+    }
+
 
     private boolean shouldContinueScheduling(ScheduledMessageEntity message) {
         if (message.getMaxExecutions() != null &&

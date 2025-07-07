@@ -3,6 +3,7 @@ package com.example.dashy_platforms.domaine.model.ScheduleMessage;
 import com.example.dashy_platforms.domaine.enums.IntervalUnit;
 import com.example.dashy_platforms.domaine.enums.ScheduleType;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,6 +14,7 @@ import java.util.Map;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ScheduleMessageRequest {
     private MessageContent messageContent;
     private ScheduleType scheduleType;
@@ -27,4 +29,5 @@ public class ScheduleMessageRequest {
     private String mediaType;
     private String attachmentId;
     private LocalDateTime startDate;
+    private String scheduleSendingDateType;
 }

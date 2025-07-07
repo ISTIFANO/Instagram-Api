@@ -7,5 +7,6 @@ import java.util.List;
 import java.util.Set;
 
 public interface IMessageSchedulerService {
+    ScheduledMessageEntity saveScheduledMessage(ScheduleMessageRequest message);
     public List<ScheduledMessageEntity> scheduleMessageForAllActiveUsers(ScheduleMessageRequest request , Set<String> activeUsers );
 }

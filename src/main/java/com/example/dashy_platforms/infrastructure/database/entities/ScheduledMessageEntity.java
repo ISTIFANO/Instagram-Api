@@ -22,7 +22,7 @@ public class ScheduledMessageEntity {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String recipientId;
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -31,7 +31,20 @@ public class ScheduledMessageEntity {
     @Column(nullable = false)
     private String messagetype = "TEXT";
 
-    @Column(nullable = false)
+    @Column(nullable = true)
+    /*
+    TIME : mean that all feature related for replay
+
+ DAILY,           // Chaque jour
+    WEEKLY,          // Chaque semaine (jour spécifique)
+    MONTHLY,         // Chaque mois (jour spécifique)
+    INTERVAL,        // Intervalle personnalisé (heures/minutes)
+    ONCE,
+
+    happyBirthday BIRTHDAY : mean  mean that all feature related for  sending msg for Birthday
+     */
+    private String Schedule_sending_date_type;
+    @Column(nullable = true)
     private String attachment= "Has no media";
 
     @Column(nullable = false)
