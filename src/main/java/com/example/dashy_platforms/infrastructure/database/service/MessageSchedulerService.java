@@ -32,10 +32,37 @@ public class MessageSchedulerService implements IMessageSchedulerService {
 
 
     @Override
+    public ScheduledMessageEntity saveScheduledMessage(ScheduleMessageRequest request) {
+        if ("BIRTHDAY".equalsIgnoreCase(request.getScheduleSendingDateType())) {
+            boolean exists = scheduledMessageRepository.existsGlobalBirthdayConfig();
+            if (exists) {
+                throw new IllegalArgumentException("Un message BIRTHDAY est déjà configuré.");
+            }
+        }
+
+        ScheduledMessageEntity entity = new ScheduledMessageEntity();
+        entity.setMessageContent(request.getMessageContent().getText());
+        entity.setScheduleType(request.getScheduleType());
+        entity.setIntervalValue(request.getIntervalValue());
+        entity.setSchedule_sending_date_type(request.getScheduleSendingDateType());
+        entity.setIntervalUnit(request.getIntervalUnit());
+        entity.setDayOfMonth(request.getDayOfMonth());
+        entity.setDayOfWeek(request.getDayOfWeek());
+        entity.setHourOfDay(request.getHourOfDay());
+        entity.setMinuteOfHour(request.getMinuteOfHour());
+        entity.setMaxExecutions(request.getMaxExecutions());
+        entity.setExecutionCount(0);
+        entity.setIsActive(true);
+        entity.setMessagetype(request.getMessageType());
+        entity.setMediaType(request.getMediaType() != null ? request.getMediaType() : "Has no media");
+        entity.setAttachment(request.getAttachmentId() != null ? request.getAttachmentId() : "Has no media");
+        entity.setSchedule_sending_date_type(request.getScheduleSendingDateType());
+        return scheduledMessageRepository.save(entity);
+    }
+    @Override
     public List<ScheduledMessageEntity> scheduleMessageForAllActiveUsers(ScheduleMessageRequest request ,Set<String> activeUsers ) {
         try {
             List<ScheduledMessageEntity> scheduledMessages = new ArrayList<>();
-            ObjectMapper mapper = new ObjectMapper();
 
             for (String userId : activeUsers) {
                 ScheduledMessageEntity scheduledMessage = new ScheduledMessageEntity();
@@ -68,6 +95,7 @@ public class MessageSchedulerService implements IMessageSchedulerService {
                         break;
                 }
                 scheduledMessage.setMessagetype(request.getMessageType());
+                scheduledMessage.setSchedule_sending_date_type(request.getScheduleSendingDateType());
                 scheduledMessage.setScheduleType(request.getScheduleType());
                 scheduledMessage.setIntervalValue(request.getIntervalValue());
                 scheduledMessage.setIntervalUnit(request.getIntervalUnit());

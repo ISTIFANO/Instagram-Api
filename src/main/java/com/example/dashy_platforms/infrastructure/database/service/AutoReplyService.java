@@ -33,8 +33,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -86,23 +88,40 @@ public class AutoReplyService {
         }
     }
 
+    private boolean isHoliday(Autoaction autoaction, LocalDate date) {
+        if (autoaction.getHolidays() == null || autoaction.getHolidays().isEmpty()) {
+            return false;
+        }
+
+        String dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE);
+        return Arrays.asList(autoaction.getHolidays().split(","))
+                .stream()
+                .map(String::trim)
+                .anyMatch(dateStr::equals);
+    }
+
     public boolean shouldReply(Autoaction autoaction, LocalDateTime receivedAt) {
+        // Vérifier d'abord les jours fériés (priorité haute)
+        if (isHoliday(autoaction, receivedAt.toLocalDate())) {
+            return true;
+        }
+
+        // Vérifier les jours non travaillés
         List<String> nonWorkingDays = Arrays.asList(autoaction.getNonWorkingDays().split(","));
         DayOfWeek currentDay = receivedAt.getDayOfWeek();
 
-        // Check if it's a non-working day
         if (nonWorkingDays.contains(currentDay.name())) {
             return true;
         }
 
         LocalTime currentTime = receivedAt.toLocalTime();
 
-        // Check if during lunch break
+        // Vérifier la pause déjeuner
         if (isDuringPause(autoaction, currentTime)) {
             return true;
         }
 
-        // Check if outside working hours
+        // Vérifier les heures hors travail
         Company company = autoaction.getCompany();
         return currentTime.isBefore(company.getWorkStartTime()) ||
                 currentTime.isAfter(company.getWorkEndTime());
@@ -112,35 +131,26 @@ public class AutoReplyService {
         try {
             switch (autoaction.getMessageType()) {
                 case "TEMPLATE" -> sendTemplateMessage(autoaction, receiverId);
-
                 case "TEXT" -> {
                     if (!isPageMessage(receiverId)) {
                         instagramService.sendTextMessage(receiverId, autoaction.getMessage());
                     }
                 }
-
                 case "AUTO" -> {
                     if (!isPageMessage(receiverId)) {
                         String message = buildTextMessage(autoaction, receivedAt);
                         instagramService.sendTextMessage(receiverId, message);
                     }
                 }
-
-                default -> {
-                    throw new IllegalArgumentException("Unknown message type: " + autoaction.getMessageType());
-                }
+                default -> throw new IllegalArgumentException("Unknown message type: " + autoaction.getMessageType());
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to send reply message", e);
         }
-
     }
 
-
     private void sendTemplateMessage(Autoaction autoaction, String receiverId) throws JsonProcessingException {
-
-        TemplateInstagram templateInstagram = templateService.getTemplateByCode((String) autoaction.getMessage());
-
+        TemplateInstagram templateInstagram = templateService.getTemplateByCode(autoaction.getMessage());
 
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -149,18 +159,27 @@ public class AutoReplyService {
                 templateInstagram.getTemplateContent(),
                 InstagramTemplateRequest.class
         );
-        if (isPageMessage(receiverId)) {
-            return;
+
+        if (!isPageMessage(receiverId)) {
+            templateObject.getRecipient().setId(receiverId);
+            templateService.sendGenericTemplate(receiverId, templateObject);
         }
-        templateObject.getRecipient().setId(receiverId);
-        templateService.sendGenericTemplate(receiverId, templateObject);
     }
 
     private String buildTextMessage(Autoaction autoaction, LocalDateTime receivedAt) {
         DayOfWeek day = receivedAt.getDayOfWeek();
         LocalTime currentTime = receivedAt.toLocalTime();
+        LocalDate currentDate = receivedAt.toLocalDate();
         Company company = autoaction.getCompany();
-        if (Arrays.asList(autoaction.getNonWorkingDays().split(",")).contains(day.name())) {
+
+        if (isHoliday(autoaction, currentDate)) {
+            return String.format("Nous sommes fermés aujourd'hui (%s) pour cause de jour férié. " +
+                            "Nos horaires habituels sont %s-%s (%s).",
+                    currentDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    company.getWorkStartTime(),
+                    company.getWorkEndTime(),
+                    getWorkingDays(autoaction));
+        } else if (Arrays.asList(autoaction.getNonWorkingDays().split(",")).contains(day.name())) {
             return String.format("Nous sommes fermés le %s. Horaires: %s-%s (%s)",
                     day.getDisplayName(TextStyle.FULL, Locale.FRENCH),
                     company.getWorkStartTime(),
@@ -201,22 +220,16 @@ public class AutoReplyService {
 
     @Transactional
     public AutoactionResponseDTO updateAutoactionConfig(AutoactionConfigDTO configDTO) {
-
         Company company = companyRepository.findCompanyByName(configDTO.getCompanyName())
                 .orElseGet(() -> {
                     Company newCompany = new Company();
                     newCompany.setName(configDTO.getCompanyName());
                     newCompany.setWorkStartTime(LocalTime.parse(configDTO.getWorkStartTime()));
                     newCompany.setWorkEndTime(LocalTime.parse(configDTO.getWorkEndTime()));
-                    Autoaction newAutoaction = new Autoaction();
-                    newAutoaction.setCompany(newCompany);
-                    newAutoaction.setPauseStart(LocalTime.parse(configDTO.getPauseStart()));
-                    newAutoaction.setPauseEnd(LocalTime.parse(configDTO.getPauseEnd()));
-                    newAutoaction.setNonWorkingDays(configDTO.getNonWorkingDays().toString());
                     return companyRepository.save(newCompany);
                 });
 
-        // Update work hours
+        // Mise à jour des heures de travail
         if (configDTO.getWorkStartTime() != null) {
             company.setWorkStartTime(LocalTime.parse(configDTO.getWorkStartTime()));
         }
@@ -226,8 +239,16 @@ public class AutoReplyService {
         companyRepository.save(company);
 
         Autoaction autoaction = autoactionRepository.findByCompanyName(configDTO.getCompanyName())
-                .orElseThrow(() -> new RuntimeException("Autoaction config not found for company: " + configDTO.getCompanyName()));
+                .orElseGet(() -> {
+                    Autoaction newAutoaction = new Autoaction();
+                    newAutoaction.setCompany(company);
+                    return newAutoaction;
+                });
 
+        // Mise à jour de la configuration
+        if (configDTO.getHolidays() != null) {
+            autoaction.setHolidays(String.join(",", configDTO.getHolidays()));
+        }
         if (configDTO.getNonWorkingDays() != null) {
             autoaction.setNonWorkingDays(String.join(",", configDTO.getNonWorkingDays()));
         }
@@ -239,20 +260,27 @@ public class AutoReplyService {
         }
         autoaction.setMessageType(configDTO.getMessageType());
         autoaction.setMessage(configDTO.getMessage());
+
         autoactionRepository.save(autoaction);
 
-        // Build response DTO
+        // Construction de la réponse
         AutoactionResponseDTO response = new AutoactionResponseDTO();
         response.setCompanyName(company.getName());
         response.setWorkStartTime(company.getWorkStartTime().toString());
         response.setWorkEndTime(company.getWorkEndTime().toString());
         response.setPauseStart(autoaction.getPauseStart().toString());
         response.setPauseEnd(autoaction.getPauseEnd().toString());
-        response.setNonWorkingDays(List.of(autoaction.getNonWorkingDays().split(",")));
+        response.setNonWorkingDays(configDTO.getNonWorkingDays() != null ?
+                configDTO.getNonWorkingDays() :
+                List.of(autoaction.getNonWorkingDays().split(",")));
+        response.setHolidays(configDTO.getHolidays() != null ?
+                configDTO.getHolidays() :
+                (autoaction.getHolidays() != null ?
+                        List.of(autoaction.getHolidays().split(",")) :
+                        List.of()));
 
         return response;
     }
-
 
     public AutoactionConfigDTO getAutoactionConfig(String companyName) {
         Autoaction autoaction = autoactionRepository.findByCompanyName(companyName)
@@ -265,6 +293,9 @@ public class AutoReplyService {
         dto.setPauseEnd(autoaction.getPauseEnd().toString());
         dto.setWorkStartTime(autoaction.getCompany().getWorkStartTime().toString());
         dto.setWorkEndTime(autoaction.getCompany().getWorkEndTime().toString());
+        dto.setHolidays(autoaction.getHolidays() != null ?
+                Arrays.asList(autoaction.getHolidays().split(",")) :
+                List.of());
 
         return dto;
     }
@@ -275,8 +306,6 @@ public class AutoReplyService {
                         String.format("Configuration Autoaction introuvable pour l'entreprise '%s'", companyName)
                 ));
     }
-
-
     public void markMessageSeenByMid(String senderId, String mid, LocalDateTime seenAt) {
         System.out.println("✅ [Service] Marking message with ID " + mid + " as seen by user " + senderId + " at " + seenAt);
         messageServiceImp.markMessageAsSeen(mid);

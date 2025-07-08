@@ -49,7 +49,8 @@ public class Company {
     @Enumerated(EnumType.STRING)
     @Column(nullable = true)
     private CompanyStatus status;
-
+//    @Column(name = "holidays",nullable = true)
+//    private String holidays;
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

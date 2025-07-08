@@ -3,6 +3,7 @@ package com.example.dashy_platforms.infrastructure.database.repositeries;
 import com.example.dashy_platforms.infrastructure.database.entities.InstagramUserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,5 +15,7 @@ public interface InstagramUserRepository extends JpaRepository<InstagramUserEnti
     List<InstagramUserEntity> findTokensExpiringBefore(LocalDateTime expiryDate);
     Optional<InstagramUserEntity> findByInstagramUserId(String instagramUserId);
     boolean existsByInstagramUserId(String instagramUserId);
+    @Query("SELECT u FROM InstagramUserEntity u WHERE FUNCTION('MONTH', u.Birthday) = :month AND FUNCTION('DAY', u.Birthday) = :day")
+    List<InstagramUserEntity> findByBirthdayMonthAndDay(@Param("month") int month, @Param("day") int day);
 
 }

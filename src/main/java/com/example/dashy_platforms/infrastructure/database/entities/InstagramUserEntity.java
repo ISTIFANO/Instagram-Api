@@ -54,6 +54,9 @@ public class InstagramUserEntity {
     @Column(name = "permissions")
     private String permissions;
 
+    @Column(name = "birthday" , nullable = true)
+    private String Birthday;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

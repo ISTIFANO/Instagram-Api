@@ -11,4 +11,6 @@ public interface IScheduledMessageExecutorService {
      */
     @Scheduled(fixedRate = 60000)
     void executeScheduledMessages();
+
+
 }
