@@ -13,5 +13,6 @@ public class AutoactionConfigDTO {
     private String workEndTime;
     private String message;
     private String messageType;
+    private List<String> holidays;
 
 }

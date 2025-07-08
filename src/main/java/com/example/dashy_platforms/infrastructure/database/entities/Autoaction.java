@@ -32,6 +32,8 @@ public class Autoaction {
 
     @Column(name ="message")
     private String message;
+    @Column(name = "holidays", nullable = true)
+    private String holidays;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)

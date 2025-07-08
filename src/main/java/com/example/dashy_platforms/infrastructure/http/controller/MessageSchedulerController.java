@@ -59,8 +59,8 @@ public class MessageSchedulerController {
     public ResponseEntity<?> create(@RequestBody ScheduleMessageRequest message) {
         try {
 
-            JsoonFormat jsoonFormat = new JsoonFormat();
-            jsoonFormat.printJson(message);
+//            JsoonFormat jsoonFormat = new JsoonFormat();
+//            jsoonFormat.printJson(message);
             ScheduledMessageEntity saved = schedulerService.saveScheduledMessage(message);
             return ResponseEntity.ok(saved);
         } catch (IllegalArgumentException e) {
