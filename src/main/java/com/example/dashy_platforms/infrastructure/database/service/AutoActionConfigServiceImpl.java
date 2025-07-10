@@ -3,6 +3,7 @@ package com.example.dashy_platforms.infrastructure.database.service;
 import com.example.dashy_platforms.domaine.model.InstagramMessageResponse;
 import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageRequest;
 import com.example.dashy_platforms.domaine.service.AutoActionConfigService;
+import com.example.dashy_platforms.domaine.service.IAutoActionConfigService;
 import com.example.dashy_platforms.infrastructure.database.entities.AutoActionConfigEntity;
 import com.example.dashy_platforms.infrastructure.database.entities.Company;
 import com.example.dashy_platforms.infrastructure.database.entities.MessageEntity;
@@ -22,7 +23,7 @@ import java.util.Map;
 @Service
 @Slf4j
 
-public class AutoActionConfigServiceImpl{
+public class AutoActionConfigServiceImpl implements IAutoActionConfigService {
 private AutoActionConfigRepository autoActionConfigRepository;
     @Value("${instagram.graph.api.url}")
     private String graphApiUrl;
@@ -37,11 +38,11 @@ private CompanyService companyService;
         this.companyService = companyService;
     }
 
-
+@Override
     public List<AutoActionConfigEntity> getActionsByCompany(Company company) {
         return autoActionConfigRepository.findByCompany(company);
     }
-
+@Override
     public InstagramMessageResponse sendTextMessage(String recipientId) {
         try {
             Company company = companyService.getCompanyByname("DASHY");

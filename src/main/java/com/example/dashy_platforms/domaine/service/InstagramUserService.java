@@ -5,6 +5,11 @@ import com.example.dashy_platforms.infrastructure.database.entities.InstagramUse
 import java.util.Optional;
 
 public interface InstagramUserService {
-    Optional<InstagramUserEntity> findByInstagramUserId(String instagramUserId);
 
+    /**
+     * Finds an Instagram user by their Instagram user ID
+     * @param instagramUserId The unique ID of the Instagram user
+     * @return Optional containing the found InstagramUserEntity, or empty if not found
+     */
+    Optional<InstagramUserEntity> findByInstagramUserId(String instagramUserId);
 }

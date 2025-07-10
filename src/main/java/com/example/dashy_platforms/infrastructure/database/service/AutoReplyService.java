@@ -11,6 +11,7 @@ import com.example.dashy_platforms.domaine.model.MessageText.InstagramMessageReq
 import com.example.dashy_platforms.domaine.model.MessageText.MessageDto;
 import com.example.dashy_platforms.domaine.model.Template.Button_Template.InstagramButtonTemplateRequest;
 import com.example.dashy_platforms.domaine.model.Template.QuickReplie.Quick_replies_Request;
+import com.example.dashy_platforms.domaine.service.IAutoReplyService;
 import com.example.dashy_platforms.infrastructure.database.entities.*;
 import com.example.dashy_platforms.infrastructure.database.repositeries.AutoactionRepository;
 import com.example.dashy_platforms.infrastructure.database.repositeries.CompanyRepository;
@@ -44,7 +45,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 
-public class AutoReplyService {
+public class AutoReplyService implements IAutoReplyService {
 
     private final AutoactionRepository autoactionRepository;
     private final CompanyRepository companyRepository;
@@ -78,7 +79,7 @@ public class AutoReplyService {
         this.companyRepository = companyRepository;
         this.restTemplate = new RestTemplate();
     }
-
+@Override
     public void checkAndReply(String senderId, String message, LocalDateTime receivedAt) {
         Autoaction autoaction = autoactionRepository.findByCompanyName("DASHY")
                 .orElseThrow(() -> new RuntimeException("Aucune configuration trouvée"));
@@ -217,7 +218,7 @@ public class AutoReplyService {
     private boolean isPageMessage(String fromId) {
         return pageId.equals(fromId);
     }
-
+@Override
     @Transactional
     public AutoactionResponseDTO updateAutoactionConfig(AutoactionConfigDTO configDTO) {
         Company company = companyRepository.findCompanyByName(configDTO.getCompanyName())
@@ -281,7 +282,7 @@ public class AutoReplyService {
 
         return response;
     }
-
+@Override
     public AutoactionConfigDTO getAutoactionConfig(String companyName) {
         Autoaction autoaction = autoactionRepository.findByCompanyName(companyName)
                 .orElseThrow(() -> new RuntimeException("Configuration not found"));
@@ -299,24 +300,25 @@ public class AutoReplyService {
 
         return dto;
     }
-
+@Override
     public Autoaction getAutoaction(String companyName) {
         return autoactionRepository.findByCompanyName(companyName)
                 .orElseThrow(() -> new EntityNotFoundException(
                         String.format("Configuration Autoaction introuvable pour l'entreprise '%s'", companyName)
                 ));
     }
+    @Override
     public void markMessageSeenByMid(String senderId, String mid, LocalDateTime seenAt) {
         System.out.println("✅ [Service] Marking message with ID " + mid + " as seen by user " + senderId + " at " + seenAt);
         messageServiceImp.markMessageAsSeen(mid);
     }
-
+@Override
     public void markMessagesSeenUntil(String senderId, LocalDateTime seenUntil) {
         System.out.println("✅ [Service] Marking all messages from " + senderId + " seen until " + seenUntil);
         // Ex: messageRepository.markAllBefore(senderId, seenUntil);
     }
 
-
+@Override
         public void ProcessSendingAutoReplay(String senderId, String messageText, LocalDateTime eventTime) {
             try {
 
@@ -397,25 +399,6 @@ public class AutoReplyService {
                         templateData.getRecipient().setId(recipientId);
                         this.templateService.sendGenericTemplate(recipientId ,templateData);
                         break;
-//                    case "QUICK_REPLY":
-//                        ModelMapper modelMapper = new ModelMapper();
-//                        InstagramMessageR quickReplyJson = this.templateService.getQuick_replies(action.getResponseMessage());
-//
-//                        Quick_replies_Request quickRepliesRequest = modelMapper.map(quickReplyJson, Quick_replies_Request.class);
-//
-//                        JsoonFormat jsoonFormat = new JsoonFormat();
-//                        jsoonFormat.printJson(quickRepliesRequest);
-//                        quickRepliesRequest.getRecipient().setId(recipientId);
-//                        this.templateService.sendQuick_repliesTemplate(quickRepliesRequest);
-//
-//
-//                    break;
-//                    case "TEMPLATE_BUTTON":
-//                        InstagramButtonTemplateRequest template_button = this.templateService.getTemplatebutton(action.getResponseMessage());
-//
-//                        this.templateService.sendButtonTemplateToAllActiveUsers(template_button);
-//
-//                        break;
                     default:
                         log.warn("Type de message non reconnu: {}", action.getMessageType());
                 }

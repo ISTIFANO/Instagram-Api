@@ -660,7 +660,6 @@ public class InstagramService implements IInstagramService {
         }
         return Collections.emptyList();
     }
-
     public boolean isConversationActive(List<Message> messages) {
         if (messages.isEmpty()) {
             return false;
