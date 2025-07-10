@@ -41,6 +41,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -1036,4 +1037,41 @@ public class InstagramService implements IInstagramService {
         return optional.orElseThrow(() -> new Exception(
                 "Aucun message vidéo trouvé avec le contenu : " + messageContent));
     }
+
+    public Map<String, Long> getMessageStatsByCompanyAndDate(Long companyId, LocalDate date) {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.plusDays(1).atStartOfDay();
+
+        List<Object[]> result = messageRepository.countMessagesByStatusAndCompanyAndDayRange(companyId, start, end);
+
+        Map<String, Long> stats = new HashMap<>();
+        for (Object[] row : result) {
+            stats.put((String) row[0], (Long) row[1]);
+        }
+
+        for (String expected : List.of("RECEIVED", "FAILED", "PENDING", "SENT")) {
+            stats.putIfAbsent(expected, 0L);
+        }
+
+        return stats;
+    }
+
+
+    public Map<String, Long> getMessageStatusStats(Long companyId) {
+        List<Object[]> stats = messageRepository.countMessagesByStatusAndCompany(companyId);
+        Map<String, Long> result = new HashMap<>();
+        for (Object[] row : stats) {
+            String status = (String) row[0];
+            Long count = (Long) row[1];
+            result.put(status, count);
+        }
+
+        for (String expectedStatus : List.of("RECEIVED", "FAILED", "PENDING", "SENT")) {
+            result.putIfAbsent(expectedStatus, 0L);
+        }
+
+        return result;
+    }
+
+
 }

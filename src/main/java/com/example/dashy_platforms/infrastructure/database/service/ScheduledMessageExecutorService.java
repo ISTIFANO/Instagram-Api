@@ -28,7 +28,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 @Transactional
 @Service
 @Slf4j
@@ -53,7 +56,33 @@ private final ITemplateService templateService;
         this.instagramUserService = instagramUserService;
         this.instagramUserRepository = instagramUserRepository;
     }
+
 @Override
+    public Map<String, Object> getBroadcastStatsByCompanyId(Long companyId) {
+        Map<String, Object> stats = new HashMap<>();
+
+        stats.put("totalScheduled", scheduledMessageRepository.countAllByCompanyId(companyId));
+        stats.put("activeScheduled", scheduledMessageRepository.countActiveByCompanyId(companyId));
+        stats.put("inactiveScheduled", scheduledMessageRepository.countInactiveByCompanyId(companyId));
+        stats.put("executedScheduled", scheduledMessageRepository.countExecutedByCompanyId(companyId));
+
+        Map<String, Long> scheduleTypeMap = new HashMap<>();
+        for (Object[] row : scheduledMessageRepository.countByScheduleTypeByCompanyId(companyId)) {
+            scheduleTypeMap.put(row[0].toString(), (Long) row[1]);
+        }
+        stats.put("byScheduleType", scheduleTypeMap);
+
+        Map<String, Long> scheduleDateTypeMap = new HashMap<>();
+        for (Object[] row : scheduledMessageRepository.countByScheduleDateTypeByCompanyId(companyId)) {
+            String type = row[0] != null ? row[0].toString() : "UNDEFINED";
+            scheduleDateTypeMap.put(type, (Long) row[1]);
+        }
+        stats.put("byScheduleDateType", scheduleDateTypeMap);
+
+        return stats;
+    }
+
+    @Override
     @Scheduled(fixedRate = 60000)
     public void executeScheduledMessages() {
         LocalDateTime now = LocalDateTime.now();

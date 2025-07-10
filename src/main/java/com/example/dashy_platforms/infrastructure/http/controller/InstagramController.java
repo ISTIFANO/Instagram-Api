@@ -287,7 +287,9 @@ String recipient_id = message.getRecipient().getId();
 
     @GetMapping("/active-users")
     public ResponseEntity<Set<String>> getActiveUsers() {
+
         return ResponseEntity.ok(instagramService.getActiveUsers());
+
     }
 
     private ResponseEntity<Map<String, Object>> okResponse(Map<String, Boolean> results) {
