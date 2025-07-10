@@ -2,6 +2,8 @@ package com.example.dashy_platforms.domaine.service;
 
 import org.springframework.scheduling.annotation.Scheduled;
 
+import java.util.Map;
+
 public interface IScheduledMessageExecutorService {
     /**
      * Exécute les messages planifiés dont l'heure d'exécution est atteinte.
@@ -11,6 +13,6 @@ public interface IScheduledMessageExecutorService {
      */
     @Scheduled(fixedRate = 60000)
     void executeScheduledMessages();
-
+    Map<String, Object> getBroadcastStatsByCompanyId(Long companyId);
 
 }
